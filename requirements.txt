@@ -11,6 +11,7 @@ boto3
 pytesseract
 pillow
 httpx
+python-multipart
 python-dotenv
 pytest
 pytest-asyncio
