@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
     redis_url: str = Field(
         default="redis://localhost:6379/0",
-        alias="REDIS_URL",
+        validation_alias=AliasChoices("REDIS_URL", "REDIS_TLS_URL"),
         description="Redis connection string for Celery broker/backend.",
     )
     s3_endpoint: str = Field(
