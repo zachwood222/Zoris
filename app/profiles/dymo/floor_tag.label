@@ -1,0 +1,33 @@
+<DieCutLabel Version="8.0" Units="twips">
+  <PaperOrientation>Landscape</PaperOrientation>
+  <Id>LargeAddress</Id>
+  <PaperName>Custom 2x1</PaperName>
+  <Objects>
+    <TextObject>
+      <Name>SKU</Name>
+      <Bounds>100,80,2600,400</Bounds>
+      <Text>{SKU}</Text>
+    </TextObject>
+    <TextObject>
+      <Name>Description</Name>
+      <Bounds>100,500,2600,400</Bounds>
+      <Text>{SHORT_DESC}</Text>
+    </TextObject>
+    <TextObject>
+      <Name>Price</Name>
+      <Bounds>100,900,2600,400</Bounds>
+      <Text>${PRICE}</Text>
+    </TextObject>
+    <BarcodeObject>
+      <Name>Barcode</Name>
+      <Bounds>100,1300,2600,600</Bounds>
+      <Text>{BARCODE}</Text>
+      <Type>Code128</Type>
+    </BarcodeObject>
+    <TextObject>
+      <Name>ShortCode</Name>
+      <Bounds>100,2000,2600,400</Bounds>
+      <Text>Code: {SHORT_CODE}</Text>
+    </TextObject>
+  </Objects>
+</DieCutLabel>
