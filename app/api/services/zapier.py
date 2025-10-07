@@ -31,3 +31,9 @@ def ticket_finalized(payload: dict[str, Any]) -> None:
     if not settings.zap_ticket_finalized_url:
         return
     asyncio.create_task(post_with_retry(settings.zap_ticket_finalized_url, payload))
+
+
+def delivery_completed(payload: dict[str, Any]) -> None:
+    if not settings.zap_delivery_completed_url:
+        return
+    asyncio.create_task(post_with_retry(settings.zap_delivery_completed_url, payload))

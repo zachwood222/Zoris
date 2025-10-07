@@ -13,6 +13,8 @@ from ..schemas.common import (
     OCRSaleTicketResponse,
     SaleCreateRequest,
     SaleDeliveryRequest,
+    SaleDeliveryStatusResponse,
+    SaleDeliveryStatusUpdate,
     SaleFinalizeResponse,
     SaleLineRequest,
 )
@@ -113,6 +115,7 @@ async def finalize_sale(sale_id: int, session: AsyncSession = Depends(get_sessio
             "tax": float(sale.tax or 0),
             "total": float(sale.total or 0),
             "delivery_requested": sale.delivery_requested,
+            "delivery_status": sale.delivery_status,
             "lines": [
                 {
                     "sku": line.item.sku if line.item else "",
@@ -142,8 +145,48 @@ async def delivery_request(sale_id: int, payload: SaleDeliveryRequest, session: 
     if not sale:
         raise HTTPException(status_code=404, detail="sale_not_found")
     sale.delivery_requested = payload.delivery_requested
+    if payload.delivery_requested:
+        sale.delivery_status = sale.delivery_status or "queued"
+    else:
+        sale.delivery_status = None
     await session.flush()
-    return {"sale_id": sale.sale_id, "delivery_requested": sale.delivery_requested}
+    return {
+        "sale_id": sale.sale_id,
+        "delivery_requested": sale.delivery_requested,
+        "delivery_status": sale.delivery_status,
+    }
+
+
+@router.get("/{sale_id}/delivery-status", response_model=SaleDeliveryStatusResponse)
+async def get_delivery_status(
+    sale_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_roles("Driver", "Admin")),
+) -> SaleDeliveryStatusResponse:
+    sale = await session.get(Sale, sale_id)
+    if not sale:
+        raise HTTPException(status_code=404, detail="sale_not_found")
+    return SaleDeliveryStatusResponse(sale_id=sale.sale_id, delivery_status=sale.delivery_status)
+
+
+@router.patch("/{sale_id}/delivery-status", response_model=SaleDeliveryStatusResponse)
+async def update_delivery_status(
+    sale_id: int,
+    payload: SaleDeliveryStatusUpdate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_roles("Driver", "Admin")),
+) -> SaleDeliveryStatusResponse:
+    sale = await session.get(Sale, sale_id)
+    if not sale:
+        raise HTTPException(status_code=404, detail="sale_not_found")
+    sale.delivery_status = payload.delivery_status
+    await session.flush()
+    if sale.delivery_status == "delivered":
+        zapier.delivery_completed({
+            "sale_id": sale.sale_id,
+            "delivery_status": sale.delivery_status,
+        })
+    return SaleDeliveryStatusResponse(sale_id=sale.sale_id, delivery_status=sale.delivery_status)
 
 
 @router.post("/{sale_id}/approve")

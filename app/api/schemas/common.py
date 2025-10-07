@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -64,6 +64,21 @@ class SaleFinalizeResponse(BaseModel):
 class SaleDeliveryRequest(BaseModel):
     delivery_requested: bool
     address: dict | None = None
+
+
+class SaleDeliveryStatusUpdate(BaseModel):
+    delivery_status: Literal[
+        "queued",
+        "scheduled",
+        "out_for_delivery",
+        "delivered",
+        "failed",
+    ]
+
+
+class SaleDeliveryStatusResponse(BaseModel):
+    sale_id: int
+    delivery_status: str | None
 
 
 class OCRSaleTicketResponse(BaseModel):
