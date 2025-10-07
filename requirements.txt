@@ -4,6 +4,7 @@ sqlalchemy[asyncio]
 asyncpg
 aiosqlite
 alembic
+psycopg2-binary
 pydantic-settings
 celery
 redis
