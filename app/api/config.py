@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,10 +20,40 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
         description="SQLAlchemy connection string for the primary database.",
     )
-    redis_url: str = Field(
-        default="redis://localhost:6379/0",
+    redis_url: str | None = Field(
+        default=None,
         validation_alias=AliasChoices("REDIS_URL", "REDIS_TLS_URL"),
         description="Redis connection string for Celery broker/backend.",
+    )
+    redis_host: str | None = Field(
+        default=None,
+        alias="REDIS_HOST",
+        description="Redis hostname used when building a URL from discrete parts.",
+    )
+    redis_port: int | None = Field(
+        default=None,
+        alias="REDIS_PORT",
+        description="Redis port used when building a URL from discrete parts.",
+    )
+    redis_username: str | None = Field(
+        default=None,
+        alias="REDIS_USERNAME",
+        description="Redis username used when building a URL from discrete parts.",
+    )
+    redis_password: str | None = Field(
+        default=None,
+        alias="REDIS_PASSWORD",
+        description="Redis password used when building a URL from discrete parts.",
+    )
+    redis_db: int = Field(
+        default=0,
+        alias="REDIS_DB",
+        description="Redis database index used for Celery broker/backend.",
+    )
+    redis_use_tls: bool = Field(
+        default=False,
+        alias="REDIS_USE_TLS",
+        description="Whether to require TLS when building the Redis URL.",
     )
     s3_endpoint: str = Field(
         default="http://localhost:9000",
@@ -54,6 +84,29 @@ class Settings(BaseSettings):
     qbo_enabled: bool = Field(default=False, alias="QBO_ENABLED")
     station_pin_rotate_minutes: int = Field(default=1440, alias="STATION_PIN_ROTATE_MINUTES")
     feature_auto_approve_ocr: bool = Field(default=True, alias="AUTO_APPROVE_OCR")
+
+    @model_validator(mode="after")
+    def _ensure_redis_url(self) -> "Settings":
+        """Populate ``redis_url`` from discrete fields when necessary."""
+
+        if self.redis_url:
+            return self
+
+        if self.redis_host:
+            scheme = "rediss" if self.redis_use_tls else "redis"
+            port = self.redis_port or (6380 if self.redis_use_tls else 6379)
+            auth = ""
+            if self.redis_username and self.redis_password:
+                auth = f"{self.redis_username}:{self.redis_password}@"
+            elif self.redis_password and not self.redis_username:
+                auth = f":{self.redis_password}@"
+            elif self.redis_username:
+                auth = f"{self.redis_username}@"
+            self.redis_url = f"{scheme}://{auth}{self.redis_host}:{port}/{self.redis_db}"
+            return self
+
+        self.redis_url = f"redis://localhost:6379/{self.redis_db}"
+        return self
 
 @lru_cache(1)
 def get_settings() -> Settings:
