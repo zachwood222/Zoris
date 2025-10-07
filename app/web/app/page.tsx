@@ -1,31 +1,10 @@
 import Link from 'next/link';
 
-const metrics = [
-  {
-    label: 'Active Orders',
-    value: '248',
-    change: '+18%',
-    status: 'vs last week'
-  },
-  {
-    label: 'Tickets Cleared',
-    value: '182',
-    change: '+12%',
-    status: 'review queue'
-  },
-  {
-    label: 'Inbound Trucks',
-    value: '6',
-    change: '2 arriving',
-    status: 'next 60 min'
-  },
-  {
-    label: 'Label Jobs',
-    value: '34',
-    change: 'ready',
-    status: 'print queue'
-  }
-];
+import {
+  DashboardActivityList,
+  DashboardMetrics,
+  DashboardSystemStatusList
+} from './dashboard-summary-client';
 
 const workspaces = [
   {
@@ -76,45 +55,6 @@ const quickActions = [
   }
 ];
 
-const activityFeed = [
-  {
-    title: 'Inbound truck #542 checked in',
-    description: 'Dock 3 • 12 pallets • ETA 12:40 PM',
-    time: '5 minutes ago'
-  },
-  {
-    title: 'OCR ticket 8319 approved',
-    description: 'Variance resolved by Avery Howard',
-    time: '17 minutes ago'
-  },
-  {
-    title: 'Kiosk sale completed',
-    description: 'Order #004192 ready for invoicing',
-    time: '23 minutes ago'
-  }
-];
-
-const systemStatus = [
-  {
-    label: 'Celery Workers',
-    state: 'Operational',
-    badge: 'bg-emerald-500',
-    description: 'All queues healthy and under threshold.'
-  },
-  {
-    label: 'OCR Pipeline',
-    state: 'Syncing',
-    badge: 'bg-sky-400',
-    description: 'Processing 4 handwritten tickets right now.'
-  },
-  {
-    label: 'Label Service',
-    state: 'Standby',
-    badge: 'bg-amber-400',
-    description: 'Waiting for next scheduled batch at 1:15 PM.'
-  }
-];
-
 export default function HomePage() {
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-16 px-6 py-16 text-slate-100 lg:px-12 lg:py-20">
@@ -144,17 +84,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map((metric) => (
-            <div
-              key={metric.label}
-              className="group rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20 transition hover:border-white/30 hover:bg-white/10"
-            >
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">{metric.label}</p>
-              <p className="mt-4 text-3xl font-semibold text-white">{metric.value}</p>
-              <p className="mt-2 text-xs font-semibold text-emerald-300">{metric.change}</p>
-              <p className="mt-1 text-xs text-slate-400">{metric.status}</p>
-            </div>
-          ))}
+          <DashboardMetrics />
         </div>
       </header>
 
@@ -221,13 +151,7 @@ export default function HomePage() {
               <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Live</span>
             </div>
             <ul className="mt-6 space-y-5">
-              {activityFeed.map((item) => (
-                <li key={item.title} className="border-l-2 border-sky-500/60 pl-4">
-                  <p className="text-sm font-semibold text-white">{item.title}</p>
-                  <p className="mt-1 text-xs text-slate-300">{item.description}</p>
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-slate-500">{item.time}</p>
-                </li>
-              ))}
+              <DashboardActivityList />
             </ul>
           </div>
 
@@ -237,17 +161,7 @@ export default function HomePage() {
               <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Health</span>
             </div>
             <ul className="mt-6 space-y-5">
-              {systemStatus.map((status) => (
-                <li key={status.label} className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-white">{status.label}</p>
-                    <p className="text-xs text-slate-300">{status.description}</p>
-                  </div>
-                  <span className={`inline-flex items-center gap-2 rounded-full ${status.badge} px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-900`}>
-                    {status.state}
-                  </span>
-                </li>
-              ))}
+              <DashboardSystemStatusList />
             </ul>
           </div>
         </aside>
