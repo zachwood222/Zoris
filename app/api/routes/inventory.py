@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -26,12 +27,15 @@ async def adjust_inventory(payload: InventoryAdjustRequest, session: AsyncSessio
         inventory = Inventory(
             item_id=payload.item_id,
             location_id=payload.location_id,
-            qty_on_hand=0,
-            qty_reserved=0,
-            avg_cost=0,
+            qty_on_hand=Decimal("0"),
+            qty_reserved=Decimal("0"),
+            avg_cost=Decimal("0"),
         )
         session.add(inventory)
-    inventory.qty_on_hand = (inventory.qty_on_hand or 0) + payload.qty_delta
+
+    current_qty = inventory.qty_on_hand if inventory.qty_on_hand is not None else Decimal("0")
+    qty_delta = Decimal(str(payload.qty_delta))
+    inventory.qty_on_hand = Decimal(current_qty) + qty_delta
     txn = InventoryTxn(
         item_id=payload.item_id,
         location_id=payload.location_id,
