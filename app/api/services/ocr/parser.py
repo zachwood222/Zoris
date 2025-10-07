@@ -42,15 +42,33 @@ async def parse_ticket(document: OcrDocument) -> ParsedTicket:
     name_tokens: list[str] = []
     totals: dict[str, float] = {}
     confidences: list[float] = []
+    collecting_name = False
     for word in words:
-        token = word.text.lower()
+        raw_text = word.text
+        token = raw_text.lower()
         confidences.append(word.confidence)
         if token.startswith("customer"):
             name_tokens.clear()
+            collecting_name = True
+            continue
         elif token.startswith("phone"):
             phone = _extract_phone(word.text)
             if phone:
                 totals["phone"] = phone  # type: ignore[assignment]
+            collecting_name = False
+        elif any(marker in token for marker in ("subtotal", "tax", "total")):
+            collecting_name = False
+        elif collecting_name:
+            stripped = raw_text.strip().strip(":")
+            if not stripped:
+                continue
+            lowered = stripped.lower()
+            if lowered.startswith("customer") or lowered.startswith("phone"):
+                collecting_name = False
+                continue
+            if lowered.startswith("name") and len(lowered) <= 5:
+                continue
+            name_tokens.append(stripped)
         money = _extract_money(word.text)
         if money is not None:
             if "subtotal" in token:
@@ -61,7 +79,7 @@ async def parse_ticket(document: OcrDocument) -> ParsedTicket:
                 totals["total"] = money
     confidence = mean(confidences) if confidences else 0.0
     return ParsedTicket(
-        customer_name="".join(name_tokens) or None,
+        customer_name=" ".join(name_tokens) or None,
         phone=totals.get("phone"),
         subtotal=totals.get("subtotal"),
         tax=totals.get("tax"),
