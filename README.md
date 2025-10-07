@@ -24,9 +24,6 @@ variable sets:
 - Or provide discrete parts such as `REDIS_HOST`, `REDIS_PORT`,
   `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_DB`, and `REDIS_USE_TLS=true`.
 
-If neither option is present and `ENVIRONMENT` is set to `local`, the
-application falls back to the local `redis://localhost:6379/0` URL for the
-Docker Compose stack. In all other environments the application now fails fast
-with a clear configuration error so that you can supply the appropriate Redis
-endpoint instead of getting repeated `Connection refused` messages during
-deployments.
+If neither option is present the application now fails fast with a clear
+configuration error so that you can supply the appropriate Redis endpoint
+instead of getting repeated `Connection refused` messages during deployments.
