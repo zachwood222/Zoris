@@ -14,7 +14,7 @@ async def test_post_with_retry(monkeypatch):
             if len(attempts) < 2:
                 raise RuntimeError("boom")
 
-    async def fake_post(url, json, timeout):  # noqa: A002 - shadowing json arg is intentional
+    async def fake_post(self, url, **kwargs):
         attempts.append(1)
         if len(attempts) < 3:
             raise RuntimeError("boom")

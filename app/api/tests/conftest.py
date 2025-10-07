@@ -4,8 +4,9 @@ import asyncio
 from collections.abc import AsyncIterator
 
 import pytest
+import pytest_asyncio
 from fastapi import FastAPI
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
@@ -20,7 +21,8 @@ def event_loop() -> AsyncIterator[asyncio.AbstractEventLoop]:
     loop.close()
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def client() -> AsyncIterator[AsyncClient]:
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
