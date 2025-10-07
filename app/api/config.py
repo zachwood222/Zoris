@@ -105,8 +105,14 @@ class Settings(BaseSettings):
             self.redis_url = f"{scheme}://{auth}{self.redis_host}:{port}/{self.redis_db}"
             return self
 
-        self.redis_url = f"redis://localhost:6379/{self.redis_db}"
-        return self
+        if self.environment == "local":
+            self.redis_url = f"redis://localhost:6379/{self.redis_db}"
+            return self
+
+        raise ValueError(
+            "Redis connection details are required when environment!='local'. "
+            "Set REDIS_URL/REDIS_TLS_URL or the discrete REDIS_* variables."
+        )
 
 @lru_cache(1)
 def get_settings() -> Settings:
