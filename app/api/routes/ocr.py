@@ -45,26 +45,33 @@ async def upload_ticket(
         )
     document: OcrDocument = await provider.analyze(tmp.name)
     parsed = await parser.parse_ticket(document)
+    parsed_fields: dict[str, object | None] = {
+        "customer_name": parsed.customer_name,
+        "phone": parsed.phone,
+        "subtotal": parsed.subtotal,
+        "tax": parsed.tax,
+        "total": parsed.total,
+    }
+    if ticket_id:
+        parsed_fields["ticket_id"] = ticket_id
     sale = Sale(status="draft", source="ocr_ticket", ocr_confidence=parsed.confidence)
+    sale.ocr_payload = parsed_fields
+    if parsed.subtotal is not None:
+        sale.subtotal = parsed.subtotal
+    if parsed.tax is not None:
+        sale.tax = parsed.tax
+    if parsed.total is not None:
+        sale.total = parsed.total
     session.add(sale)
     await session.flush()
     session.add(Attachment(ref_type="sale", ref_id=sale.sale_id, file_url=doc_url, kind="photo_ticket"))
     await session.flush()
-    response = OCRSaleTicketResponse(
+    return OCRSaleTicketResponse(
         sale_id=sale.sale_id,
-        parsed_fields={
-            "customer_name": parsed.customer_name,
-            "phone": parsed.phone,
-            "subtotal": parsed.subtotal,
-            "tax": parsed.tax,
-            "total": parsed.total,
-        },
+        parsed_fields=parsed_fields,
         confidence=parsed.confidence,
         review_required=parsed.review_required,
     )
-    if ticket_id:
-        response.parsed_fields["ticket_id"] = ticket_id
-    return response
 
 
 @router.get("/sale-ticket/{sale_id}")
@@ -72,9 +79,12 @@ async def get_ticket(sale_id: int, session: AsyncSession = Depends(get_session))
     sale = await session.get(Sale, sale_id)
     if not sale:
         raise HTTPException(status_code=404, detail="not_found")
-    attachment = await session.scalar(select(Attachment).where(Attachment.ref_type == "sale", Attachment.ref_id == sale_id))
+    attachment = await session.scalar(
+        select(Attachment).where(Attachment.ref_type == "sale", Attachment.ref_id == sale_id)
+    )
     return {
         "sale_id": sale.sale_id,
         "ocr_confidence": float(sale.ocr_confidence or 0),
         "attachment_url": attachment.file_url if attachment else None,
+        "parsed_fields": sale.ocr_payload or {},
     }

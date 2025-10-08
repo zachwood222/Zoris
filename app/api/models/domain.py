@@ -238,6 +238,7 @@ class Sale(Base, TimestampMixin):
     created_by: Mapped[Optional[str]]
     source: Mapped[Optional[str]]
     ocr_confidence: Mapped[Optional[float]] = mapped_column(Numeric(5, 4))
+    ocr_payload: Mapped[Optional[dict]] = mapped_column(JSON)
     delivery_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     delivery_status: Mapped[Optional[str]] = mapped_column(delivery_status_enum)
 
