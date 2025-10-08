@@ -4,13 +4,16 @@ from __future__ import annotations
 import asyncio
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
+
 
 from sqlalchemy import delete
 
-from .config import get_settings
 from .db import engine
 from .models import domain
 from .services.shortcode import generate_short_code
+
+LABEL_TEMPLATE_PATH = Path("app/profiles/dymo/floor_tag.label")
 
 
 async def seed() -> None:
@@ -25,12 +28,18 @@ async def seed() -> None:
             domain.LabelTemplate,
             domain.Attachment,
             domain.Barcode,
-            domain.SaleLine,
-            domain.Sale,
             domain.ReceivingLine,
             domain.Receiving,
             domain.POLine,
             domain.PurchaseOrder,
+            domain.SaleLine,
+            domain.Sale,
+            domain.Customer,
+            domain.ReceivingLine,
+            domain.Receiving,
+            domain.POLine,
+            domain.PurchaseOrder,
+
             domain.Inventory,
             domain.Item,
             domain.Location,
@@ -38,6 +47,7 @@ async def seed() -> None:
             domain.Vendor,
         ]:
             await session.execute(delete(table))
+
         vendors = [domain.Vendor(name=f"Vendor {i}", terms="Net 30") for i in range(1, 6)]
         session.add_all(vendors)
         await session.flush()
@@ -51,7 +61,8 @@ async def seed() -> None:
         await session.flush()
 
         existing_codes: set[str] = set()
-        items = []
+        items: list[domain.Item] = []
+        random.seed(42)
         for i in range(1, 51):
             code = generate_short_code(existing_codes)
             existing_codes.add(code)
@@ -283,11 +294,202 @@ async def seed() -> None:
             )
             session.add(domain.Barcode(barcode=f"BC{item.item_id:05d}", item_id=item.item_id))
 
+        now = datetime.utcnow()
+
+        customers = [
+            domain.Customer(name="Jordan Alvarez", phone="555-0100", email="jordan@example.com"),
+            domain.Customer(name="Sasha Patel", phone="555-0110", email="sasha@example.com"),
+            domain.Customer(name="Taylor Reed", phone="555-0120", email="taylor@example.com"),
+        ]
+        session.add_all(customers)
+        await session.flush()
+
+        def create_sale(
+            *,
+            customer: domain.Customer | None,
+            status: str,
+            source: str | None,
+            created_at: datetime,
+            line_specs: list[tuple[domain.Item, float, domain.Location]],
+        ) -> None:
+            sale = domain.Sale(
+                customer_id=customer.customer_id if customer else None,
+                status=status,
+                source=source,
+                created_by="demo",
+                subtotal=0,
+                tax=0,
+                total=0,
+            )
+            sale.created_at = created_at
+            sale.sale_date = created_at
+            session.add(sale)
+            subtotal = 0.0
+            for item, qty, location in line_specs:
+                price = float(item.price)
+                subtotal += price * qty
+                session.add(
+                    domain.SaleLine(
+                        sale=sale,
+                        item_id=item.item_id,
+                        location_id=location.location_id,
+                        qty=qty,
+                        unit_price=price,
+                    )
+                )
+            sale.subtotal = subtotal
+            sale.total = subtotal
+
+        create_sale(
+            customer=customers[0],
+            status="open",
+            source="kiosk",
+            created_at=now - timedelta(hours=3),
+            line_specs=[(items[0], 2, locations[0]), (items[1], 1, locations[0])],
+        )
+        create_sale(
+            customer=customers[1],
+            status="open",
+            source="kiosk",
+            created_at=now - timedelta(minutes=40),
+            line_specs=[(items[2], 1, locations[0]), (items[3], 3, locations[0])],
+        )
+        create_sale(
+            customer=None,
+            status="draft",
+            source="ocr_ticket",
+            created_at=now - timedelta(minutes=25),
+            line_specs=[(items[4], 1, locations[1])],
+        )
+        create_sale(
+            customer=None,
+            status="draft",
+            source="ocr_ticket",
+            created_at=now - timedelta(days=1, hours=2),
+            line_specs=[(items[5], 2, locations[1])],
+        )
+
+        po_open = domain.PurchaseOrder(
+            vendor_id=vendors[0].vendor_id,
+            status="open",
+            expected_date=now + timedelta(days=2),
+            terms="Net 30",
+            notes="Floor reset inbound",
+            created_by="demo",
+        )
+        po_open.created_at = now - timedelta(hours=5)
+        session.add(po_open)
+        await session.flush()
+
+        session.add_all(
+            [
+                domain.POLine(
+                    po_id=po_open.po_id,
+                    item_id=items[10].item_id,
+                    description=items[10].description,
+                    qty_ordered=5,
+                    qty_received=0,
+                    unit_cost=float(items[10].unit_cost),
+                ),
+                domain.POLine(
+                    po_id=po_open.po_id,
+                    item_id=items[11].item_id,
+                    description=items[11].description,
+                    qty_ordered=4,
+                    qty_received=0,
+                    unit_cost=float(items[11].unit_cost),
+                ),
+            ]
+        )
+
+        po_partial = domain.PurchaseOrder(
+            vendor_id=vendors[1].vendor_id,
+            status="partial",
+            expected_date=now + timedelta(days=1),
+            terms="Net 45",
+            notes="Restock accessories",
+            created_by="demo",
+        )
+        po_partial.created_at = now - timedelta(hours=2)
+        session.add(po_partial)
+        await session.flush()
+
+        po_partial_line_a = domain.POLine(
+            po_id=po_partial.po_id,
+            item_id=items[12].item_id,
+            description=items[12].description,
+            qty_ordered=6,
+            qty_received=2,
+            unit_cost=float(items[12].unit_cost),
+        )
+        po_partial_line_b = domain.POLine(
+            po_id=po_partial.po_id,
+            item_id=items[13].item_id,
+            description=items[13].description,
+            qty_ordered=8,
+            qty_received=5,
+            unit_cost=float(items[13].unit_cost),
+        )
+        session.add_all([po_partial_line_a, po_partial_line_b])
+        await session.flush()
+
+        recent_receiving = domain.Receiving(
+            po_id=po_partial.po_id,
+            received_by="Morgan",
+            received_at=now - timedelta(hours=1, minutes=15),
+        )
+        recent_receiving.created_at = recent_receiving.received_at
+        session.add(recent_receiving)
+        await session.flush()
+
+        session.add_all(
+            [
+                domain.ReceivingLine(
+                    receipt_id=recent_receiving.receipt_id,
+                    po_line_id=po_partial_line_a.po_line_id,
+                    item_id=po_partial_line_a.item_id,
+                    qty_received=2,
+                    unit_cost=float(items[12].unit_cost),
+                ),
+                domain.ReceivingLine(
+                    receipt_id=recent_receiving.receipt_id,
+                    po_line_id=po_partial_line_b.po_line_id,
+                    item_id=po_partial_line_b.item_id,
+                    qty_received=3,
+                    unit_cost=float(items[13].unit_cost),
+                ),
+            ]
+        )
+
+        earlier_receiving = domain.Receiving(
+            po_id=po_partial.po_id,
+            received_by="Casey",
+            received_at=now - timedelta(hours=3, minutes=30),
+        )
+        earlier_receiving.created_at = earlier_receiving.received_at
+        session.add(earlier_receiving)
+        await session.flush()
+
+        session.add(
+            domain.ReceivingLine(
+                receipt_id=earlier_receiving.receipt_id,
+                po_line_id=po_partial_line_b.po_line_id,
+                item_id=po_partial_line_b.item_id,
+                qty_received=2,
+                unit_cost=float(items[13].unit_cost),
+            )
+        )
+
+        if LABEL_TEMPLATE_PATH.exists():
+            label_contents = LABEL_TEMPLATE_PATH.read_text()
+        else:
+            label_contents = "<label />"
+
         session.add(
             domain.LabelTemplate(
                 name="Floor 2x1",
                 target="item",
-                dymo_label_xml=open("app/profiles/dymo/floor_tag.label").read(),
+                dymo_label_xml=label_contents,
             )
         )
         await session.commit()

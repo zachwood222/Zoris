@@ -5,6 +5,7 @@ import {
   DashboardMetrics,
   DashboardSystemStatusList
 } from './dashboard-summary-client';
+import HeroStatusCard from './hero-status-card';
 
 const workspaces = [
   {
@@ -71,17 +72,7 @@ export default function HomePage() {
               Monitor the pulse of every workspace, surface quick actions for your team, and stay ahead of inbound activity.
             </p>
           </div>
-          <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/60 p-6 text-sm text-slate-300">
-            <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Today</p>
-              <p className="mt-2 text-lg font-semibold text-white">Tuesday • 11:05 AM</p>
-            </div>
-            <div className="hidden h-12 w-px bg-white/10 lg:block" aria-hidden />
-            <div className="hidden text-xs text-slate-400 sm:flex sm:flex-col sm:gap-1">
-              <span>Next shift handoff in 55 minutes</span>
-              <span className="text-emerald-300">All systems reporting healthy</span>
-            </div>
-          </div>
+          <HeroStatusCard />
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <DashboardMetrics />

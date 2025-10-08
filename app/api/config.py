@@ -87,11 +87,18 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000"],
         alias="CORS_ORIGINS",
+        description="Comma-separated list of origins allowed to call the API.",
+
         description="Comma-separated list of allowed CORS origins for the API.",
     )
 
     @field_validator("cors_origins", mode="before")
     @classmethod
+    def _split_cors_origins(cls, value: str | list[str]) -> list[str]:
+        """Ensure ``cors_origins`` can be provided as comma separated string."""
+
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
     def _split_cors_origins(cls, value: Any) -> Any:
         """Parse a comma separated string of origins into a list."""
 
