@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -84,6 +84,25 @@ class Settings(BaseSettings):
     qbo_enabled: bool = Field(default=False, alias="QBO_ENABLED")
     station_pin_rotate_minutes: int = Field(default=1440, alias="STATION_PIN_ROTATE_MINUTES")
     feature_auto_approve_ocr: bool = Field(default=True, alias="AUTO_APPROVE_OCR")
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000"],
+        alias="CORS_ORIGINS",
+        description="Comma-separated list of allowed CORS origins for the API.",
+    )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_cors_origins(cls, value: Any) -> Any:
+        """Parse a comma separated string of origins into a list."""
+
+        if value is None or value == "":
+            return value
+
+        if isinstance(value, str):
+            origins = [origin.strip() for origin in value.split(",")]
+            return [origin for origin in origins if origin]
+
+        return value
 
     @model_validator(mode="after")
     def _ensure_redis_url(self) -> "Settings":
