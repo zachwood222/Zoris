@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models.domain import InventoryTxn, Item, Sale, SaleLine
+from ..models.domain import Barcode, InventoryTxn, Item, Sale, SaleLine
 from ..schemas.common import (
     OCRSaleTicketResponse,
     SaleCreateRequest,
@@ -68,6 +68,8 @@ async def add_line(sale_id: int, payload: SaleLineRequest, session: AsyncSession
         item_stmt = item_stmt.where(Item.sku == payload.sku)
     elif payload.short_code:
         item_stmt = item_stmt.where(Item.short_code == payload.short_code)
+    elif payload.barcode:
+        item_stmt = item_stmt.join(Barcode).where(Barcode.barcode == payload.barcode)
     else:
         raise HTTPException(status_code=400, detail="missing_identifier")
     item = await session.scalar(item_stmt)
