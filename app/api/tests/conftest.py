@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+import os
 
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 from ..config import Settings
 from ..db import get_session
