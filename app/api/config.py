@@ -105,10 +105,14 @@ class Settings(BaseSettings):
             self.redis_url = f"{scheme}://{auth}{self.redis_host}:{port}/{self.redis_db}"
             return self
 
-        raise ValueError(
-            "Redis connection details are required. Set REDIS_URL/REDIS_TLS_URL "
-            "or the discrete REDIS_* variables so Celery can reach Redis."
-        )
+        if self.environment == "production":
+            raise ValueError(
+                "Redis connection details are required. Set REDIS_URL/REDIS_TLS_URL "
+                "or the discrete REDIS_* variables so Celery can reach Redis."
+            )
+
+        self.redis_url = "redis://localhost:6379/0"
+        return self
 
 @lru_cache(1)
 def get_settings() -> Settings:
