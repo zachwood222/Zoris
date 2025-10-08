@@ -81,11 +81,29 @@ class SaleDeliveryStatusResponse(BaseModel):
     delivery_status: str | None
 
 
+class AttachmentSummary(BaseModel):
+    attachment_id: int
+    file_url: str
+    kind: str
+    created_at: datetime
+
+
 class OCRSaleTicketResponse(BaseModel):
     sale_id: int
     parsed_fields: dict
     confidence: float
     review_required: bool
+
+
+class SaleDetailResponse(BaseModel):
+    sale_id: int
+    status: str
+    subtotal: float
+    tax: float
+    total: float
+    ocr_confidence: float
+    ocr_fields: dict
+    attachments: list[AttachmentSummary]
 
 
 class LabelRenderRequest(BaseModel):

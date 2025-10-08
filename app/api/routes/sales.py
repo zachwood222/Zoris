@@ -8,14 +8,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models.domain import Barcode, InventoryTxn, Item, Sale, SaleLine
+from ..models.domain import Attachment, Barcode, InventoryTxn, Item, Sale, SaleLine
 from ..schemas.common import (
+    AttachmentSummary,
     OCRSaleTicketResponse,
     SaleCreateRequest,
     SaleDeliveryRequest,
     SaleDeliveryStatusResponse,
     SaleDeliveryStatusUpdate,
     SaleFinalizeResponse,
+    SaleDetailResponse,
     SaleLineRequest,
 )
 from ..security import User, require_roles
@@ -35,10 +37,44 @@ async def list_sales(session: AsyncSession = Depends(get_session)) -> dict:
                 "sale_id": sale.sale_id,
                 "ocr_confidence": float(sale.ocr_confidence or 0),
                 "total": float(sale.total or 0),
+                "customer_name": (sale.ocr_payload or {}).get("customer_name"),
             }
             for sale in drafts
         ]
     }
+
+
+@router.get("/{sale_id}", response_model=SaleDetailResponse)
+async def get_sale_detail(sale_id: int, session: AsyncSession = Depends(get_session)) -> SaleDetailResponse:
+    sale = await session.get(Sale, sale_id)
+    if not sale:
+        raise HTTPException(status_code=404, detail="sale_not_found")
+    attachment_rows = (
+        await session.execute(
+            select(Attachment)
+            .where(Attachment.ref_type == "sale", Attachment.ref_id == sale_id)
+            .order_by(Attachment.created_at.desc())
+        )
+    ).scalars()
+    attachments = [
+        AttachmentSummary(
+            attachment_id=attachment.attachment_id,
+            file_url=attachment.file_url,
+            kind=attachment.kind,
+            created_at=attachment.created_at,
+        )
+        for attachment in attachment_rows
+    ]
+    return SaleDetailResponse(
+        sale_id=sale.sale_id,
+        status=sale.status,
+        subtotal=float(sale.subtotal or 0),
+        tax=float(sale.tax or 0),
+        total=float(sale.total or 0),
+        ocr_confidence=float(sale.ocr_confidence or 0),
+        ocr_fields=sale.ocr_payload or {},
+        attachments=attachments,
+    )
 
 
 @router.post("", response_model=dict)
