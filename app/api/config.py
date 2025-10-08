@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -88,6 +88,8 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:3000"],
         alias="CORS_ORIGINS",
         description="Comma-separated list of origins allowed to call the API.",
+
+        description="Comma-separated list of allowed CORS origins for the API.",
     )
 
     @field_validator("cors_origins", mode="before")
@@ -97,6 +99,16 @@ class Settings(BaseSettings):
 
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
+    def _split_cors_origins(cls, value: Any) -> Any:
+        """Parse a comma separated string of origins into a list."""
+
+        if value is None or value == "":
+            return value
+
+        if isinstance(value, str):
+            origins = [origin.strip() for origin in value.split(",")]
+            return [origin for origin in origins if origin]
+
         return value
 
     @model_validator(mode="after")

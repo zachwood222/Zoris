@@ -5,6 +5,7 @@
    - FastAPI at http://localhost:8000
    - Next.js at http://localhost:3000
    - PostgreSQL, Redis, MinIO, and Celery workers
+   - Configure browser access to the API with the `CORS_ORIGINS` env var (defaults to `http://localhost:3000`).
 3. Run migrations and seed data inside the API container:
    ```bash
    docker compose exec api alembic upgrade head
