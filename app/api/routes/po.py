@@ -216,6 +216,8 @@ async def receive_po(
         line = await session.get(POLine, line_payload.po_line_id)
         if not line:
             continue
+        if line.po_id != po_id:
+            raise HTTPException(status_code=400, detail="po_line_mismatch")
         qty = line_payload.qty_received
         unit_cost = float(line_payload.unit_cost or line.unit_cost)
         line.qty_received = (line.qty_received or 0) + qty
