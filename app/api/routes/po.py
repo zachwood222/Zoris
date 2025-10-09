@@ -6,20 +6,23 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..models.domain import (
     Barcode,
     Bill,
+    Item,
     InventoryTxn,
     POLine,
     PurchaseOrder,
     Receiving,
     ReceivingLine,
+    Vendor,
 )
 from ..security import User, require_roles
+from ..schemas.po import POLineSearchResult
 
 router = APIRouter()
 
@@ -194,6 +197,81 @@ async def lookup_po_line(
 
     if not results:
         raise HTTPException(status_code=404, detail="po_line_not_found")
+
+    return results
+
+
+def _escape_like(value: str) -> str:
+    """Escape SQL LIKE wildcards in ``value``."""
+
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+@router.get("/lines/search", response_model=list[POLineSearchResult])
+async def search_po_lines(
+    q: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_roles("Purchasing", "Admin")),
+) -> list[POLineSearchResult]:
+    query = q.strip()
+    if len(query) < 2:
+        return []
+
+    escaped = _escape_like(query)
+    like_pattern = f"%{escaped}%"
+    remaining_qty = POLine.qty_ordered - func.coalesce(POLine.qty_received, 0)
+
+    stmt = (
+        select(POLine, PurchaseOrder, Item, Vendor)
+        .join(PurchaseOrder, PurchaseOrder.po_id == POLine.po_id)
+        .join(Item, Item.item_id == POLine.item_id)
+        .join(Vendor, Vendor.vendor_id == PurchaseOrder.vendor_id, isouter=True)
+        .where(PurchaseOrder.status.in_(("open", "partial")))
+        .where(remaining_qty > 0)
+    )
+
+    conditions = [
+        Item.sku.ilike(like_pattern, escape="\\"),
+        Item.description.ilike(like_pattern, escape="\\"),
+        POLine.description.ilike(like_pattern, escape="\\"),
+        PurchaseOrder.notes.ilike(like_pattern, escape="\\"),
+        Vendor.name.ilike(like_pattern, escape="\\"),
+    ]
+
+    digit_tokens = {int(fragment) for fragment in re.findall(r"\d+", query)}
+    if digit_tokens:
+        conditions.extend(
+            (
+                PurchaseOrder.po_id.in_(digit_tokens),
+                POLine.po_line_id.in_(digit_tokens),
+                Item.item_id.in_(digit_tokens),
+            )
+        )
+
+    stmt = stmt.where(or_(*conditions)).order_by(PurchaseOrder.po_id.desc(), POLine.po_line_id).limit(50)
+
+    rows = (await session.execute(stmt)).all()
+
+    results: list[POLineSearchResult] = []
+    for line, po, item, vendor in rows:
+        qty_ordered = float(line.qty_ordered or 0)
+        qty_received = float(line.qty_received or 0)
+        qty_remaining = max(qty_ordered - qty_received, 0.0)
+        if qty_remaining <= 0:
+            continue
+
+        results.append(
+            POLineSearchResult(
+                po_id=po.po_id,
+                po_number=f"PO-{po.po_id}",
+                po_line_id=line.po_line_id,
+                item_id=line.item_id,
+                item_description=line.description or item.description,
+                vendor=vendor.name if vendor else None,
+                qty_ordered=qty_ordered,
+                qty_remaining=qty_remaining,
+            )
+        )
 
     return results
 
