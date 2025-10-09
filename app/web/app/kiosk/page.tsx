@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
-
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import axios from 'axios';
+import { apiBase } from '@/app/web/lib/api';
 
 interface ItemSummary {
   item_id: number;
@@ -11,6 +10,30 @@ interface ItemSummary {
   description: string;
   price: number;
   short_code: string;
+}
+
+interface ItemLocationInfo {
+  location_id: number;
+  location_name: string;
+  qty_on_hand: number;
+  qty_reserved: number;
+}
+
+interface IncomingPurchaseInfo {
+  po_id: number;
+  status: string;
+  expected_date: string | null;
+  vendor_name: string | null;
+  qty_ordered: number;
+  qty_received: number;
+  qty_remaining: number;
+}
+
+interface ItemDetail {
+  item: ItemSummary;
+  total_on_hand: number;
+  locations: ItemLocationInfo[];
+  incoming: IncomingPurchaseInfo[];
 }
 
 interface SaleLineDraft {
@@ -32,9 +55,12 @@ export default function KioskPage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ItemSummary | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<ItemDetail | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   useEffect(() => {
-    const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     if (!query) {
       setResults([]);
       setIsSearching(false);
@@ -48,24 +74,28 @@ export default function KioskPage() {
 
     const handler = setTimeout(async () => {
       try {
-        const response = await axios.get<ItemSummary[]>(`${api}/items/search`, {
+        const response = await axios.get<ItemSummary[]>(`${apiBase}/items/search`, {
           params: { q: query },
           signal: controller.signal
         });
         setResults(response.data);
       } catch (error) {
-        if (axios.isCancel(error)) return;
+        if (controller.signal.aborted) {
+          return;
+        }
         console.error(error);
         setSearchError('Unable to load matching items right now.');
       } finally {
-        setIsSearching(false);
+        if (!controller.signal.aborted) {
+          setIsSearching(false);
+        }
       }
-      const response = await axios.get<ItemSummary[]>(`${API_BASE}/items/search`, {
-        params: { q: query }
-      });
-      setResults(response.data);
     }, 200);
-    return () => clearTimeout(handler);
+
+    return () => {
+      controller.abort();
+      clearTimeout(handler);
+    };
   }, [query]);
 
   const closeDetail = useCallback(() => {
@@ -84,7 +114,7 @@ export default function KioskPage() {
       setIsDetailLoading(true);
       setDetailError(null);
       try {
-        const response = await axios.get<ItemDetail>(`${API_BASE}/items/${selectedItem.item_id}`);
+        const response = await axios.get<ItemDetail>(`${apiBase}/items/${selectedItem.item_id}`);
         if (!cancelled) {
           setSelectedDetail(response.data);
         }
@@ -159,14 +189,6 @@ export default function KioskPage() {
   const formatCurrency = (value: number) =>
     value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
-  const finalize = async () => {
-    const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    setIsFinalizing(true);
-    setStatus(null);
-    try {
-      const { data: create } = await axios.post(`${api}/sales`, {
-        created_by: 'kiosk',
-        source: 'kiosk'
   const openItemDetail = (item: ItemSummary) => {
     setSelectedItem(item);
     setSelectedDetail(null);
@@ -195,45 +217,73 @@ export default function KioskPage() {
   };
 
   const finalize = async () => {
-    const { data: create } = await axios.post(`${API_BASE}/sales`, { created_by: 'kiosk', source: 'kiosk' });
-    const saleId = create.sale_id;
-    for (const line of lines) {
-      await axios.post(`${API_BASE}/sales/${saleId}/add-line`, {
-        sku: line.item.sku,
-        qty: line.qty,
-        location_id: 1
+    setIsFinalizing(true);
+    setStatus(null);
+
+    try {
+      const { data: create } = await axios.post<{ sale_id: number }>(`${apiBase}/sales`, {
+        created_by: 'kiosk',
+        source: 'kiosk'
       });
       const saleId = create.sale_id;
+
       for (const line of lines) {
-        await axios.post(`${api}/sales/${saleId}/add-line`, {
+        await axios.post(`${apiBase}/sales/${saleId}/add-line`, {
           sku: line.item.sku,
           qty: line.qty,
           location_id: 1
         });
       }
-      const { data: finalizeData } = await axios.post(`${api}/sales/${saleId}/finalize`);
-      setStatus({ kind: 'success', message: `Sale #${finalizeData.sale_id} finalized successfully.` });
+
+      const { data: finalizeData } = await axios.post<{ sale_id: number }>(
+        `${apiBase}/sales/${saleId}/finalize`
+      );
+
+      setStatus({
+        kind: 'success',
+        message: `Sale #${finalizeData.sale_id} finalized successfully.`
+      });
       setLines([]);
     } catch (error) {
       console.error(error);
-      setStatus({ kind: 'error', message: 'We were unable to finalize that sale. Try again shortly.' });
+      setStatus({
+        kind: 'error',
+        message: 'We were unable to finalize that sale. Try again shortly.'
+      });
     } finally {
       setIsFinalizing(false);
     }
-    const { data: finalizeData } = await axios.post(`${API_BASE}/sales/${saleId}/finalize`);
-    setStatus(`Sale #${finalizeData.sale_id} finalized!`);
-    setLines([]);
   };
 
   const uploadPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files?.length) return;
-    const file = event.target.files[0];
+    const input = event.target;
+    if (!input.files?.length) return;
+
+    const file = input.files[0];
     const form = new FormData();
     form.append('image', file);
-    const { data } = await axios.post(`${API_BASE}/ocr/sale-ticket`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    setStatus(`Draft ticket #${data.sale_id} created for review.`);
+
+    setIsUploading(true);
+    setStatus(null);
+
+    try {
+      const { data } = await axios.post<{ sale_id: number }>(`${apiBase}/ocr/sale-ticket`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setStatus({
+        kind: 'success',
+        message: `Draft ticket #${data.sale_id} created for review.`
+      });
+    } catch (error) {
+      console.error(error);
+      setStatus({
+        kind: 'error',
+        message: 'We were unable to process that ticket image. Try again shortly.'
+      });
+    } finally {
+      setIsUploading(false);
+      input.value = '';
+    }
   };
 
   return (
@@ -243,218 +293,202 @@ export default function KioskPage() {
           <h1 className="text-3xl font-bold">Sales Kiosk</h1>
           <p className="text-sm text-slate-300">Scan or search items to build a ticket.</p>
         </div>
-        <label className="rounded bg-emerald-600 px-4 py-2 font-semibold shadow">
-          Upload Ticket
+        <label
+          className={`rounded px-4 py-2 font-semibold shadow transition ${
+            isUploading
+              ? 'cursor-not-allowed bg-emerald-700/60 text-emerald-200'
+              : 'cursor-pointer bg-emerald-600 hover:bg-emerald-500'
+          }`}
+        >
+          {isUploading ? 'Uploading…' : 'Upload Ticket'}
           <input
             type="file"
             accept="image/*,.pdf"
             className="hidden"
             onChange={uploadPhoto}
+            disabled={isUploading}
           />
         </label>
       </header>
 
-      <input
-        autoFocus
-        placeholder="Scan barcode, type SKU or short code..."
-        className="w-full rounded bg-white px-4 py-3 text-lg text-slate-900 focus:outline-none"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && results[0]) {
-            addLine(results[0]);
-          }
-        }}
-      />
-
-      <section className="grid gap-2">
-        {results.map((item) => (
-          <button
-            key={item.item_id}
-            type="button"
-            onClick={() => openItemDetail(item)}
-            className="flex items-center justify-between rounded bg-slate-800 px-4 py-3 text-left hover:bg-slate-700"
-          >
-            {status.message}
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section className="flex flex-col gap-5 rounded-3xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-[0_40px_80px_-40px_rgba(15,118,110,0.35)] backdrop-blur">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">
+              Catalog search
+            </div>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Find items to add</h2>
           </div>
-        )}
-
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <section className="flex flex-col gap-5 rounded-3xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-[0_40px_80px_-40px_rgba(15,118,110,0.35)] backdrop-blur">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">
-                Catalog search
-              </div>
-              <h2 className="mt-2 text-2xl font-semibold text-white">Find items to add</h2>
+          <div className="relative">
+            <input
+              autoFocus
+              placeholder="Scan barcode, type SKU, description, or short code"
+              className="h-14 w-full rounded-2xl border border-slate-700/70 bg-slate-950/60 pl-5 pr-14 text-base text-white shadow-inner shadow-black/20 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && results[0]) {
+                  addLine(results[0]);
+                }
+              }}
+            />
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-5 text-sm text-slate-500">
+              {isSearching
+                ? 'Searching…'
+                : `${results.length} match${results.length === 1 ? '' : 'es'}`}
             </div>
-            <div className="relative">
-              <input
-                autoFocus
-                placeholder="Scan barcode, type SKU, description, or short code"
-                className="h-14 w-full rounded-2xl border border-slate-700/70 bg-slate-950/60 pl-5 pr-14 text-base text-white shadow-inner shadow-black/20 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && results[0]) {
-                    addLine(results[0]);
-                  }
-                }}
-              />
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-5 text-sm text-slate-500">
-                {isSearching ? 'Searching…' : `${results.length} match${results.length === 1 ? '' : 'es'}`}
-              </div>
-            </div>
-            {searchError && <p className="text-sm text-rose-200/80">{searchError}</p>}
+          </div>
+          {searchError && <p className="text-sm text-rose-200/80">{searchError}</p>}
 
-            <div className="flex-1 overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/40">
-              <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 border-b border-slate-800/60 px-5 py-3 text-xs uppercase tracking-[0.3em] text-slate-500">
-                <span>Item</span>
-                <span className="text-right">Price</span>
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {results.length === 0 && !isSearching ? (
-                  <div className="flex h-32 flex-col items-center justify-center gap-2 text-sm text-slate-500">
-                    <span>No results yet.</span>
-                    <span>Scan a barcode or start typing to see matches.</span>
-                  </div>
-                ) : (
-                  <ul className="divide-y divide-slate-800/60">
-                    {results.map((item) => (
-                      <li key={item.item_id}>
-                        <button
-                          type="button"
-                          onClick={() => addLine(item)}
-                          className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-800/60"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold tracking-wide text-slate-100">
-                              {item.sku}
-                            </div>
-                            <div className="mt-1 truncate text-xs text-slate-400">{item.description}</div>
-                            {item.short_code && (
-                              <div className="mt-1 text-[0.65rem] uppercase tracking-[0.4em] text-emerald-400/70">
-                                {item.short_code}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-right text-base font-semibold text-emerald-300">
-                            {formatCurrency(item.price)}
-                          </div>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+          <div className="flex-1 overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/40">
+            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 border-b border-slate-800/60 px-5 py-3 text-xs uppercase tracking-[0.3em] text-slate-500">
+              <span>Item</span>
+              <span className="text-right">Price</span>
             </div>
-          </section>
-
-          <aside className="flex h-full flex-col gap-5 rounded-3xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-[0_40px_80px_-40px_rgba(15,118,110,0.35)] backdrop-blur">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Ticket</div>
-              <h2 className="mt-2 text-2xl font-semibold text-white">Live sale summary</h2>
-            </div>
-
-            <div className="flex-1 space-y-4">
-              {lines.length === 0 ? (
-                <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-700/70 bg-slate-950/40 text-sm text-slate-500">
-                  <span>No items added yet.</span>
-                  <span>Search above to start building the ticket.</span>
+            <div className="max-h-80 overflow-y-auto">
+              {results.length === 0 && !isSearching ? (
+                <div className="flex h-32 flex-col items-center justify-center gap-2 text-sm text-slate-500">
+                  <span>No results yet.</span>
+                  <span>Scan a barcode or start typing to see matches.</span>
                 </div>
               ) : (
-                <ul className="space-y-3">
-                  {lines.map((line) => (
-                    <li
-                      key={line.item.item_id}
-                      className="rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-3 text-sm text-slate-200"
-                    >
-                      <div className="flex items-start justify-between gap-3">
+                <ul className="divide-y divide-slate-800/60">
+                  {results.map((item) => (
+                    <li key={item.item_id}>
+                      <button
+                        type="button"
+                        onClick={() => openItemDetail(item)}
+                        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-800/60"
+                      >
                         <div className="min-w-0">
-                          <div className="truncate text-xs font-semibold uppercase tracking-[0.4em] text-emerald-400/70">
-                            {line.item.sku}
+                          <div className="truncate text-sm font-semibold tracking-wide text-slate-100">
+                            {item.sku}
                           </div>
-                          <div className="mt-1 text-sm text-slate-200">{line.item.description}</div>
-                        </div>
-                        <button
-                          type="button"
-                          className="text-xs uppercase tracking-[0.4em] text-slate-500 transition hover:text-rose-300"
-                          onClick={() => removeLine(line.item.item_id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700/80 text-lg leading-none text-slate-200 transition hover:border-emerald-400 hover:text-emerald-300"
-                            onClick={() => adjustQuantity(line.item.item_id, -1)}
-                            aria-label={`Decrease quantity for ${line.item.sku}`}
-                          >
-                            −
-                          </button>
-                          <span className="w-10 text-center text-base font-semibold text-white">
-                            {line.qty}
-                          </span>
-                          <button
-                            type="button"
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700/80 text-lg leading-none text-slate-200 transition hover:border-emerald-400 hover:text-emerald-300"
-                            onClick={() => adjustQuantity(line.item.item_id, 1)}
-                            aria-label={`Increase quantity for ${line.item.sku}`}
-                          >
-                            +
-                          </button>
+                          <div className="mt-1 truncate text-xs text-slate-400">{item.description}</div>
+                          {item.short_code && (
+                            <div className="mt-1 text-[0.65rem] uppercase tracking-[0.4em] text-emerald-400/70">
+                              {item.short_code}
+                            </div>
+                          )}
                         </div>
                         <div className="text-right text-base font-semibold text-emerald-300">
-                          {formatCurrency(line.qty * line.item.price)}
+                          {formatCurrency(item.price)}
                         </div>
-                      </div>
+                      </button>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
+          </div>
+        </section>
 
-            <div className="space-y-3 rounded-2xl border border-slate-800/80 bg-slate-950/40 p-5 text-sm text-slate-300">
-              <div className="flex items-center justify-between">
-                <span>Items</span>
-                <span className="font-semibold text-white">{lines.length}</span>
+        <aside className="flex h-full flex-col gap-5 rounded-3xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-[0_40px_80px_-40px_rgba(15,118,110,0.35)] backdrop-blur">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Ticket</div>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Live sale summary</h2>
+          </div>
+
+          <div className="flex-1 space-y-4">
+            {lines.length === 0 ? (
+              <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-700/70 bg-slate-950/40 text-sm text-slate-500">
+                <span>No items added yet.</span>
+                <span>Search above to start building the ticket.</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Subtotal</span>
-                <span className="font-semibold text-white">{formatCurrency(total)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm uppercase tracking-[0.3em] text-emerald-400/80">
-                <span>Total due</span>
-                <span className="text-lg font-semibold text-emerald-300">{formatCurrency(total)}</span>
-              </div>
+            ) : (
+              <ul className="space-y-3">
+                {lines.map((line) => (
+                  <li
+                    key={line.item.item_id}
+                    className="rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-3 text-sm text-slate-200"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-semibold uppercase tracking-[0.4em] text-emerald-400/70">
+                          {line.item.sku}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-200">{line.item.description}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs uppercase tracking-[0.4em] text-slate-500 transition hover:text-rose-300"
+                        onClick={() => removeLine(line.item.item_id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700/80 text-lg leading-none text-slate-200 transition hover:border-emerald-400 hover:text-emerald-300"
+                          onClick={() => adjustQuantity(line.item.item_id, -1)}
+                          aria-label={`Decrease quantity for ${line.item.sku}`}
+                        >
+                          −
+                        </button>
+                        <span className="w-10 text-center text-base font-semibold text-white">{line.qty}</span>
+                        <button
+                          type="button"
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700/80 text-lg leading-none text-slate-200 transition hover:border-emerald-400 hover:text-emerald-300"
+                          onClick={() => adjustQuantity(line.item.item_id, 1)}
+                          aria-label={`Increase quantity for ${line.item.sku}`}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="text-right text-base font-semibold text-emerald-300">
+                        {formatCurrency(line.qty * line.item.price)}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-slate-800/80 bg-slate-950/40 p-5 text-sm text-slate-300">
+            <div className="flex items-center justify-between">
+              <span>Items</span>
+              <span className="font-semibold text-white">{lines.length}</span>
             </div>
+            <div className="flex items-center justify-between">
+              <span>Subtotal</span>
+              <span className="font-semibold text-white">{formatCurrency(total)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm uppercase tracking-[0.3em] text-emerald-400/80">
+              <span>Total due</span>
+              <span className="text-lg font-semibold text-emerald-300">{formatCurrency(total)}</span>
+            </div>
+          </div>
 
-            <button
-              type="button"
-              className="group relative inline-flex h-14 w-full items-center justify-center overflow-hidden rounded-2xl border border-emerald-500/40 bg-emerald-500/10 text-base font-semibold text-emerald-100 shadow-lg shadow-emerald-500/15 transition hover:border-emerald-300 hover:text-emerald-50 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800/60 disabled:text-slate-500"
-              onClick={finalize}
-              disabled={lines.length === 0 || isFinalizing}
-            >
-              <span className={`${isFinalizing ? 'opacity-0' : 'opacity-100'} transition`}>Finalize ticket</span>
-              {isFinalizing && (
-                <span className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.4em] text-emerald-100">
-                  Finalizing…
-                </span>
-              )}
-            </button>
-          </aside>
-        </div>
-        <button
-          type="button"
-          className="mt-4 w-full rounded bg-emerald-600 px-4 py-3 text-lg font-semibold text-white hover:bg-emerald-500"
-          onClick={finalize}
-          disabled={lines.length === 0}
-        >
-          Finalize Ticket
-        </button>
-        {status && <p className="mt-2 text-sm text-emerald-600">{status}</p>}
+          <button
+            type="button"
+            className="group relative inline-flex h-14 w-full items-center justify-center overflow-hidden rounded-2xl border border-emerald-500/40 bg-emerald-500/10 text-base font-semibold text-emerald-100 shadow-lg shadow-emerald-500/15 transition hover:border-emerald-300 hover:text-emerald-50 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800/60 disabled:text-slate-500"
+            onClick={finalize}
+            disabled={lines.length === 0 || isFinalizing}
+          >
+            <span className={`${isFinalizing ? 'opacity-0' : 'opacity-100'} transition`}>Finalize ticket</span>
+            {isFinalizing && (
+              <span className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.4em] text-emerald-100">
+                Finalizing…
+              </span>
+            )}
+          </button>
+        </aside>
       </section>
+
+      {status && (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            status.kind === 'error'
+              ? 'border-rose-500/60 bg-rose-500/10 text-rose-100'
+              : 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100'
+          }`}
+        >
+          {status.message}
+        </div>
+      )}
 
       {selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
@@ -483,7 +517,9 @@ export default function KioskPage() {
                 <>
                   <div className="flex items-center justify-between rounded-lg bg-slate-100 px-4 py-3">
                     <span className="text-sm font-medium text-slate-600">Price</span>
-                    <span className="text-lg font-semibold text-slate-900">${selectedDetail.item.price.toFixed(2)}</span>
+                    <span className="text-lg font-semibold text-slate-900">
+                      {formatCurrency(selectedDetail.item.price)}
+                    </span>
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-slate-600">Quantity on hand</h3>
@@ -527,7 +563,10 @@ export default function KioskPage() {
                         </div>
                         <ul className="mt-3 space-y-2 text-sm text-slate-600">
                           {selectedDetail.incoming.map((incoming) => (
-                            <li key={`${incoming.po_id}-${incoming.expected_date ?? 'none'}`} className="rounded border border-slate-200 px-3 py-2">
+                            <li
+                              key={`${incoming.po_id}-${incoming.expected_date ?? 'none'}`}
+                              className="rounded border border-slate-200 px-3 py-2"
+                            >
                               <div className="flex items-center justify-between">
                                 <span className="font-medium">PO #{incoming.po_id}</span>
                                 <span className="text-xs uppercase tracking-wide text-slate-400">{incoming.status}</span>
