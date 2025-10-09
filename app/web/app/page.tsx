@@ -28,6 +28,12 @@ const workspaces = [
     icon: '🚚'
   },
   {
+    href: '/incoming-trucks',
+    label: 'Incoming Trucks',
+    description: 'Track dock activity and log PO-linked updates as loads check in.',
+    icon: '🚛'
+  },
+  {
     href: '/labels',
     label: 'Labels',
     description: 'Generate bin, shelf, and delivery labels with one-tap DYMO printing.',
@@ -53,6 +59,12 @@ const quickActions = [
     label: 'Batch print labels',
     description: 'Send the morning pick list to the label printer.',
     icon: '🖨️'
+  },
+  {
+    href: '/incoming-trucks',
+    label: 'Log truck update',
+    description: 'Attach dock notes to purchase orders without leaving the floor.',
+    icon: '📦'
   }
 ];
 
