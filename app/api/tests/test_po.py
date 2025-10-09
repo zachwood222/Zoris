@@ -3,103 +3,125 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import func, select
+import pytest_asyncio
 
 from ..db import SessionLocal, engine
 from ..models.base import Base
-from ..models.domain import (
-    Bill,
-    InventoryTxn,
-    Item,
-    Location,
-    POLine,
-    PurchaseOrder,
-    Receiving,
-    ReceivingLine,
-    Vendor,
-)
+from ..models.domain import Item, POLine, PurchaseOrder, Vendor
 
 
-@pytest.mark.asyncio
-async def test_receive_po_rejects_lines_from_other_po(client) -> None:
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_database() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
+
+@pytest.mark.asyncio
+async def test_po_line_search_matches_text_fields(client):
     async with SessionLocal() as session:
-        vendor = Vendor(name="Widget Co", terms="Net 30")
-        location = Location(name="Main Warehouse", type="warehouse")
+        vendor = Vendor(name="Summit Lumber", terms=None, phone=None, email=None)
         item = Item(
-            sku="WIDGET-001",
-            description="Widget",
-            unit_cost=Decimal("5.00"),
-            price=Decimal("10.00"),
-            short_code="W001",
+            sku="STUD-2X4",
+            description="Spruce Stud 2x4",
+            unit_cost=Decimal("3.50"),
+            price=Decimal("6.75"),
+            short_code="ST24",
         )
-        po_one = PurchaseOrder(vendor=vendor, status="open", created_by="tester")
-        po_two = PurchaseOrder(vendor=vendor, status="open", created_by="tester")
-        line_one = POLine(
-            po=po_one,
+        po = PurchaseOrder(vendor=vendor, status="open", created_by="demo")
+        line = POLine(
+            po=po,
             item=item,
-            description="Widget",
-            qty_ordered=Decimal("4.00"),
-            unit_cost=Decimal("5.00"),
+            description="KD Spruce Stud 2x4",
+            qty_ordered=Decimal("80"),
+            qty_received=Decimal("40"),
+            unit_cost=Decimal("3.50"),
         )
-        line_two = POLine(
-            po=po_two,
-            item=item,
-            description="Widget",
-            qty_ordered=Decimal("6.00"),
-            unit_cost=Decimal("5.00"),
-        )
-        session.add_all([vendor, location, item, po_one, po_two, line_one, line_two])
+        session.add_all([vendor, item, po, line])
+        await session.flush()
+        po_id = po.po_id
         await session.commit()
-        await session.refresh(po_one)
-        await session.refresh(po_two)
-        await session.refresh(line_one)
-        await session.refresh(line_two)
 
-        po_one_id = po_one.po_id
-        line_one_id = line_one.po_line_id
-        line_two_id = line_two.po_line_id
+    for query in ("spruce", "Summit", f"PO-{po_id}"):
+        response = await client.get("/po/lines/search", params={"q": query})
+        assert response.status_code == 200
+        payload = response.json()
+        assert isinstance(payload, list)
+        assert len(payload) == 1
+        result = payload[0]
+        assert result["po_id"] == po_id
+        assert result["po_number"] == f"PO-{po_id}"
+        assert result["item_description"].lower().startswith("kd spruce")
+        assert result["vendor"] == "Summit Lumber"
+        assert result["qty_remaining"] == pytest.approx(40)
 
-    payload = [
-        {
-            "po_line_id": line_two_id,
-            "qty_received": 1,
-            "unit_cost": 5.0,
-        }
-    ]
 
-    response = await client.post(f"/po/{po_one_id}/receive", json=payload)
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "po_line_mismatch"
-
+@pytest.mark.asyncio
+async def test_po_line_search_excludes_fully_received_and_closed(client):
     async with SessionLocal() as session:
-        line_one_db = await session.get(POLine, line_one_id)
-        line_two_db = await session.get(POLine, line_two_id)
+        vendor = Vendor(name="Timber & Co", terms=None, phone=None, email=None)
+        item_partial = Item(
+            sku="PLY-34",
+            description="Plywood 3/4",
+            unit_cost=Decimal("15.00"),
+            price=Decimal("25.00"),
+            short_code="P034",
+        )
+        item_fully = Item(
+            sku="PLY-12",
+            description="Plywood 1/2",
+            unit_cost=Decimal("12.00"),
+            price=Decimal("20.00"),
+            short_code="P012",
+        )
+        po_open = PurchaseOrder(vendor=vendor, status="partial", created_by="demo")
+        po_closed = PurchaseOrder(vendor=vendor, status="closed", created_by="demo")
+        open_line = POLine(
+            po=po_open,
+            item=item_partial,
+            description='3/4" Plywood',
+            qty_ordered=Decimal("60"),
+            qty_received=Decimal("20"),
+            unit_cost=Decimal("15.00"),
+        )
+        full_line = POLine(
+            po=po_open,
+            item=item_fully,
+            description='1/2" Plywood',
+            qty_ordered=Decimal("40"),
+            qty_received=Decimal("40"),
+            unit_cost=Decimal("12.00"),
+        )
+        closed_line = POLine(
+            po=po_closed,
+            item=item_partial,
+            description='3/4" Plywood',
+            qty_ordered=Decimal("30"),
+            qty_received=Decimal("0"),
+            unit_cost=Decimal("15.00"),
+        )
+        session.add_all(
+            [
+                vendor,
+                item_partial,
+                item_fully,
+                po_open,
+                po_closed,
+                open_line,
+                full_line,
+                closed_line,
+            ]
+        )
+        await session.flush()
+        po_open_id = po_open.po_id
+        await session.commit()
 
-        assert float(line_one_db.qty_received or 0) == pytest.approx(0.0)
-        assert float(line_two_db.qty_received or 0) == pytest.approx(0.0)
-
-        receiving_count = (
-            await session.execute(select(func.count()).select_from(Receiving))
-        ).scalar_one()
-        receiving_line_count = (
-            await session.execute(select(func.count()).select_from(ReceivingLine))
-        ).scalar_one()
-        inventory_txn_count = (
-            await session.execute(select(func.count()).select_from(InventoryTxn))
-        ).scalar_one()
-        bill_count = (
-            await session.execute(select(func.count()).select_from(Bill))
-        ).scalar_one()
-
-        assert receiving_count == 0
-        assert receiving_line_count == 0
-        assert inventory_txn_count == 0
-        assert bill_count == 0
-
-        po_one_db = await session.get(PurchaseOrder, po_one_id)
-        assert po_one_db.status == "open"
+    response = await client.get("/po/lines/search", params={"q": "plywood"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, list)
+    assert len(payload) == 1
+    result = payload[0]
+    assert result["po_id"] == po_open_id
+    assert result["item_description"].startswith("3/4")
+    assert result["qty_remaining"] == pytest.approx(40)

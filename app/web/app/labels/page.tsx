@@ -55,7 +55,10 @@ export default function LabelsPage() {
 
   const templates = useMemo<LabelTemplate[]>(() => {
     if (Array.isArray(data) && data.length > 0) {
-      return data;
+      return data.map((template) => ({
+        ...template,
+        template_id: String(template.template_id)
+      }));
     }
     return fallbackTemplates;
   }, [data]);
@@ -74,7 +77,18 @@ export default function LabelsPage() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(defaultPurchaseOrders);
 
   useEffect(() => {
-    if (!selectedTemplateId && templates.length > 0) {
+    if (templates.length === 0) {
+      setSelectedTemplateId(null);
+      return;
+    }
+
+    if (!selectedTemplateId) {
+      setSelectedTemplateId(templates[0].template_id);
+      return;
+    }
+
+    const templateExists = templates.some((template) => template.template_id === selectedTemplateId);
+    if (!templateExists) {
       setSelectedTemplateId(templates[0].template_id);
     }
   }, [selectedTemplateId, templates]);
@@ -219,7 +233,10 @@ export default function LabelsPage() {
                     <div className="relative">
                       <select
                         value={selectedTemplateId ?? ''}
-                        onChange={(event) => setSelectedTemplateId(event.target.value)}
+                        onChange={(event) => {
+                          const nextTemplateId = event.target.value;
+                          setSelectedTemplateId(nextTemplateId ? String(nextTemplateId) : null);
+                        }}
                         className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
                       >
                         {templates.map((template) => (

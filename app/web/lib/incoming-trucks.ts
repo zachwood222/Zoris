@@ -9,73 +9,74 @@ export const authHeaders = {
 };
 
 export type TruckStatus =
-  | 'en_route'
-  | 'checked_in'
-  | 'docked'
+  | 'scheduled'
+  | 'arrived'
   | 'unloading'
-  | 'complete'
-  | 'issue';
+  | 'completed'
+  | 'cancelled';
 
-export type TruckUpdateStatus =
-  | 'en_route'
-  | 'checked_in'
-  | 'docked'
-  | 'unloading'
-  | 'complete'
-  | 'issue';
+export type TruckUpdateStatus = TruckStatus;
+
+export type TruckUpdateType = 'status' | 'note' | 'line_progress';
+
+export interface IncomingTruckLine {
+  truck_line_id: number;
+  po_line_id: number;
+  item_id: number;
+  description?: string | null;
+  qty_expected?: number | null;
+}
 
 export interface TruckUpdate {
   update_id: number;
-  po_id: number;
-  po_number: string;
-  po_line_id: number;
-  item_id: number;
-  item_description: string;
+  truck_id: number;
+  update_type: TruckUpdateType;
+  message: string | null;
+  status: TruckUpdateStatus | null;
+  po_line_id: number | null;
+  item_id: number | null;
   quantity: number | null;
-  status: TruckUpdateStatus;
-  note: string;
   created_at: string;
-  created_by: string;
+  created_by: string | null;
+}
+
+export interface IncomingTruckLineProgress {
+  po_line_id: number;
+  item_id: number | null;
+  total_quantity: number;
+}
+
+export interface IncomingTruckUpdates {
+  latest_status: TruckStatus | null;
+  note_count: number;
+  line_progress: IncomingTruckLineProgress[];
+  history: TruckUpdate[];
 }
 
 export interface IncomingTruck {
   truck_id: number;
+  po_id: number;
   reference: string;
-  carrier: string;
+  carrier: string | null;
   status: TruckStatus;
-  eta: string;
-  door?: string | null;
-  po_numbers?: string[];
-  updates: TruckUpdate[];
-}
-
-export interface IncomingTruckApiResponse {
-  trucks: IncomingTruck[];
+  scheduled_arrival: string | null;
+  arrived_at: string | null;
+  created_at: string;
+  lines: IncomingTruckLine[];
+  updates: IncomingTruckUpdates;
 }
 
 export interface CreateTruckUpdatePayload {
-  po_id: number;
-  po_line_id: number;
-  item_id: number;
-  status: TruckUpdateStatus;
-  quantity: number | null;
-  note: string;
+  update_type: TruckUpdateType;
+  message?: string;
+  status?: TruckUpdateStatus;
+  po_line_id?: number;
+  item_id?: number;
+  quantity?: number | null;
 }
 
 export interface TruckUpdateApiResponse {
-  update?: Partial<TruckUpdate> & {
-    po?: {
-      po_id?: number;
-      po_number?: string;
-    };
-    line?: {
-      po_line_id?: number;
-      item_id?: number;
-      item_description?: string;
-      description?: string;
-      quantity?: number | null;
-    };
-  };
+  update?: Partial<TruckUpdate>;
 }
 
 export interface PoLineSearchResult {
@@ -105,7 +106,7 @@ export interface UseIncomingTrucksResult {
   mutate: KeyedMutator<IncomingTruck[]>;
 }
 
-const fetcher = async <T>(url: string): Promise<T> => {
+const fetcher = async <T,>(url: string): Promise<T> => {
   const { data } = await axios.get<T>(url, { headers: authHeaders });
   return data;
 };
@@ -119,10 +120,7 @@ export function useIncomingTrucks(): UseIncomingTrucksResult {
     isLoading,
     isValidating,
     mutate
-  } = useSWR<IncomingTruck[]>(trucksUrl, async (url) => {
-    const payload = await fetcher<IncomingTruckApiResponse>(url);
-    return payload.trucks;
-  }, {
+  } = useSWR<IncomingTruck[]>(trucksUrl, async (url) => fetcher<IncomingTruck[]>(url), {
     refreshInterval: 30000,
     revalidateOnFocus: true
   });
@@ -170,65 +168,104 @@ export function usePoLineSearch(query: string): UsePoLineSearchResult {
   };
 }
 
-function applyTruckUpdate(trucks: IncomingTruck[] | undefined, truckId: number, update: TruckUpdate): IncomingTruck[] | undefined {
+function aggregateUpdatesFromHistory(history: TruckUpdate[]): IncomingTruckUpdates {
+  const sortedHistory = [...history].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+
+  let latestStatus: TruckStatus | null = null;
+  let noteCount = 0;
+  const lineTotals = new Map<number, IncomingTruckLineProgress>();
+
+  for (const entry of sortedHistory) {
+    if (entry.update_type === 'status' && entry.status) {
+      latestStatus = entry.status;
+    }
+    if (entry.update_type === 'note') {
+      noteCount += 1;
+    }
+    if (entry.update_type === 'line_progress' && entry.po_line_id !== null) {
+      const quantity = typeof entry.quantity === 'number' ? entry.quantity : 0;
+      const existing = lineTotals.get(entry.po_line_id);
+      if (existing) {
+        existing.total_quantity += quantity;
+      } else {
+        lineTotals.set(entry.po_line_id, {
+          po_line_id: entry.po_line_id,
+          item_id: entry.item_id ?? null,
+          total_quantity: quantity
+        });
+      }
+    }
+  }
+
+  const line_progress = Array.from(lineTotals.values()).sort(
+    (a, b) => a.po_line_id - b.po_line_id
+  );
+
+  return {
+    latest_status: latestStatus,
+    note_count: noteCount,
+    line_progress,
+    history: sortedHistory
+  };
+}
+
+function applyTruckUpdate(
+  trucks: IncomingTruck[] | undefined,
+  truckId: number,
+  update: TruckUpdate
+): IncomingTruck[] | undefined {
   if (!trucks) {
     return trucks;
   }
+
   return trucks.map((truck) => {
     if (truck.truck_id !== truckId) {
       return truck;
     }
-    const existing = truck.updates ?? [];
-    const merged = [update, ...existing];
-    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    const poNumbers = new Set(truck.po_numbers ?? []);
-    if (update.po_number) {
-      poNumbers.add(update.po_number);
-    }
+    const existingHistory = truck.updates?.history ?? [];
+    const mergedHistory = [...existingHistory, update];
     return {
       ...truck,
-      po_numbers: Array.from(poNumbers),
-      updates: merged
+      updates: aggregateUpdatesFromHistory(mergedHistory)
     };
   });
 }
 
 function normalizeTruckUpdate(
-  raw: Partial<TruckUpdate> & {
-    po?: { po_id?: number; po_number?: string };
-    line?: { po_line_id?: number; item_id?: number; item_description?: string; description?: string; quantity?: number | null };
-  },
+  raw: Partial<TruckUpdate>,
   fallback: {
-    poId: number;
-    poNumber: string;
-    poLineId: number;
-    itemId: number;
-    itemDescription: string;
+    truckId: number;
+    updateType: TruckUpdateType;
+    status?: TruckUpdateStatus | null;
+    poLineId?: number | null;
+    itemId?: number | null;
+    quantity?: number | null;
   }
 ): TruckUpdate {
-  const po = raw.po ?? {};
-  const line = raw.line ?? {};
-  const quantity =
-    raw.quantity ??
-    line.quantity ??
-    (typeof (raw as { qty?: number | null }).qty === 'number' ? (raw as { qty?: number | null }).qty : null);
+  const rawCreatedAt = raw.created_at ? new Date(raw.created_at) : new Date();
+  const createdAt = Number.isNaN(rawCreatedAt.getTime())
+    ? new Date().toISOString()
+    : rawCreatedAt.toISOString();
+  const quantityValue =
+    typeof raw.quantity === 'number'
+      ? raw.quantity
+      : raw.quantity != null
+        ? Number(raw.quantity)
+        : fallback.quantity ?? null;
 
   return {
     update_id: raw.update_id ?? Date.now(),
-    po_id: raw.po_id ?? po.po_id ?? fallback.poId,
-    po_number: raw.po_number ?? po.po_number ?? fallback.poNumber,
-    po_line_id: raw.po_line_id ?? line.po_line_id ?? fallback.poLineId,
-    item_id: raw.item_id ?? line.item_id ?? fallback.itemId,
-    item_description:
-      raw.item_description ??
-      line.item_description ??
-      line.description ??
-      fallback.itemDescription,
-    quantity: quantity ?? null,
-    status: (raw.status as TruckUpdateStatus) ?? 'checked_in',
-    note: raw.note ?? '',
-    created_at: raw.created_at ?? new Date().toISOString(),
-    created_by: raw.created_by ?? 'system'
+    truck_id: raw.truck_id ?? fallback.truckId,
+    update_type: (raw.update_type as TruckUpdateType) ?? fallback.updateType,
+    message: raw.message ?? null,
+    status: (raw.status as TruckUpdateStatus | null | undefined) ?? fallback.status ?? null,
+    po_line_id: raw.po_line_id ?? fallback.poLineId ?? null,
+    item_id: raw.item_id ?? fallback.itemId ?? null,
+    quantity: quantityValue ?? null,
+    created_at: createdAt,
+    created_by: raw.created_by ?? null
   };
 }
 
@@ -238,25 +275,17 @@ export async function submitTruckUpdate(
   context: {
     mutate: KeyedMutator<IncomingTruck[]>;
     current: IncomingTruck[] | undefined;
-    metadata: {
-      poId: number;
-      poNumber: string;
-      poLineId: number;
-      itemId: number;
-      itemDescription: string;
-    };
   }
 ): Promise<TruckUpdate> {
   const optimisticUpdate: TruckUpdate = {
     update_id: Date.now(),
-    po_id: payload.po_id,
-    po_number: context.metadata.poNumber,
-    po_line_id: payload.po_line_id,
-    item_id: payload.item_id,
-    item_description: context.metadata.itemDescription,
-    quantity: payload.quantity,
-    status: payload.status,
-    note: payload.note,
+    truck_id: truckId,
+    update_type: payload.update_type,
+    message: payload.message ?? null,
+    status: payload.status ?? null,
+    po_line_id: payload.po_line_id ?? null,
+    item_id: payload.item_id ?? null,
+    quantity: payload.quantity ?? null,
     created_at: new Date().toISOString(),
     created_by: 'You'
   };
@@ -272,8 +301,22 @@ export async function submitTruckUpdate(
       );
       const normalized =
         (data as TruckUpdateApiResponse)?.update
-          ? normalizeTruckUpdate((data as TruckUpdateApiResponse).update ?? {}, context.metadata)
-          : normalizeTruckUpdate((data as TruckUpdate) ?? {}, context.metadata);
+          ? normalizeTruckUpdate((data as TruckUpdateApiResponse).update ?? {}, {
+              truckId,
+              updateType: payload.update_type,
+              status: payload.status ?? null,
+              poLineId: payload.po_line_id ?? null,
+              itemId: payload.item_id ?? null,
+              quantity: payload.quantity ?? null
+            })
+          : normalizeTruckUpdate((data as TruckUpdate) ?? {}, {
+              truckId,
+              updateType: payload.update_type,
+              status: payload.status ?? null,
+              poLineId: payload.po_line_id ?? null,
+              itemId: payload.item_id ?? null,
+              quantity: payload.quantity ?? null
+            });
       resolvedUpdate = normalized;
       return applyTruckUpdate(current ?? [], truckId, normalized);
     },
