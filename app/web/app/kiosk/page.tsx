@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import axios from 'axios';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { apiBase } from '@/app/web/lib/api';
 
 interface ItemSummary {
@@ -41,10 +41,37 @@ interface SaleLineDraft {
   qty: number;
 }
 
+interface ItemDetailLocation {
+  location_id: number;
+  location_name: string;
+  qty_on_hand: number;
+  qty_reserved: number;
+}
+
+interface ItemDetailIncoming {
+  po_id: number;
+  vendor_name: string | null;
+  status: string;
+  expected_date: string | null;
+  qty_remaining: number;
+  qty_ordered: number;
+}
+
+interface ItemDetail {
+  item: {
+    price: number;
+  };
+  total_on_hand: number;
+  locations: ItemDetailLocation[];
+  incoming: ItemDetailIncoming[];
+}
+
 type StatusMessage = {
   kind: 'success' | 'error';
   message: string;
 };
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function KioskPage() {
   const [query, setQuery] = useState('');
@@ -109,16 +136,25 @@ export default function KioskPage() {
     if (!selectedItem) {
       return;
     }
+
     let cancelled = false;
+    const controller = new AbortController();
+
     const loadDetail = async () => {
       setIsDetailLoading(true);
       setDetailError(null);
+      setSelectedDetail(null);
+
       try {
         const response = await axios.get<ItemDetail>(`${apiBase}/items/${selectedItem.item_id}`);
         if (!cancelled) {
           setSelectedDetail(response.data);
         }
       } catch (error) {
+        if (axios.isCancel(error)) {
+          return;
+        }
+        console.error(error);
         if (!cancelled) {
           setDetailError('Unable to load item details.');
         }
@@ -133,6 +169,7 @@ export default function KioskPage() {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [selectedItem]);
 
@@ -140,12 +177,14 @@ export default function KioskPage() {
     if (!selectedItem) {
       return;
     }
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         closeDetail();
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedItem, closeDetail]);
@@ -191,9 +230,6 @@ export default function KioskPage() {
 
   const openItemDetail = (item: ItemSummary) => {
     setSelectedItem(item);
-    setSelectedDetail(null);
-    setDetailError(null);
-    setIsDetailLoading(true);
   };
 
   const handleAddToTicket = () => {
@@ -288,7 +324,7 @@ export default function KioskPage() {
 
   return (
     <main className="flex min-h-screen flex-col gap-6 bg-slate-900 p-6 text-white">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Sales Kiosk</h1>
           <p className="text-sm text-slate-300">Scan or search items to build a ticket.</p>
@@ -534,9 +570,7 @@ export default function KioskPage() {
                             <span className="font-medium">{location.location_name}</span>
                             <span>
                               {location.qty_on_hand.toFixed(2)} on hand
-                              {location.qty_reserved > 0
-                                ? ` · ${location.qty_reserved.toFixed(2)} reserved`
-                                : ''}
+                              {location.qty_reserved > 0 ? ` · ${location.qty_reserved.toFixed(2)} reserved` : ''}
                             </span>
                           </li>
                         ))
