@@ -15,7 +15,8 @@ test.describe('dashboard home', () => {
     const actions = [
       { name: /Create assisted sale/i, heading: /Sales Kiosk/i },
       { name: /Schedule receiving window/i, heading: /Schedule Receiving Window/i },
-      { name: /Batch print labels/i, heading: /Batch Print Labels/i }
+      { name: /Batch print labels/i, heading: /Batch Print Labels/i },
+      { name: /Log truck update/i, heading: /Incoming Trucks/i }
     ];
 
     for (const action of actions) {
