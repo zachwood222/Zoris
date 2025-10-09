@@ -11,6 +11,7 @@ redis
 boto3
 pytesseract
 pillow
+PyMuPDF
 httpx
 python-multipart
 python-dotenv

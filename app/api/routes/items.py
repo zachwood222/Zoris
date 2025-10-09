@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models.domain import Barcode, Inventory, Item, Location
+from ..models.domain import Barcode, Inventory, Item, Location, POLine, PurchaseOrder, Vendor
 from ..schemas.common import ItemSummary
+from ..schemas.items import IncomingPurchaseInfo, ItemDetailResponse, ItemLocationInfo
 
 router = APIRouter()
 
@@ -68,3 +69,90 @@ async def scan(barcode: str, session: AsyncSession = Depends(get_session)) -> di
         ],
         "last_cost": float(item.unit_cost),
     }
+
+
+@router.get("/{item_id}", response_model=ItemDetailResponse)
+async def get_item_detail(
+    item_id: int, session: AsyncSession = Depends(get_session)
+) -> ItemDetailResponse:
+    item = await session.scalar(select(Item).where(Item.item_id == item_id))
+    if not item:
+        raise HTTPException(status_code=404, detail="not_found")
+
+    location_rows = (
+        await session.execute(
+            select(
+                Location.location_id,
+                Location.name,
+                Inventory.qty_on_hand,
+                Inventory.qty_reserved,
+            )
+            .join(Inventory, Inventory.location_id == Location.location_id)
+            .where(Inventory.item_id == item_id)
+            .order_by(Location.name)
+        )
+    ).all()
+
+    locations = [
+        ItemLocationInfo(
+            location_id=location_id,
+            location_name=name,
+            qty_on_hand=float(qty_on_hand or 0),
+            qty_reserved=float(qty_reserved or 0),
+        )
+        for location_id, name, qty_on_hand, qty_reserved in location_rows
+    ]
+
+    incoming_rows = (
+        await session.execute(
+            select(
+                PurchaseOrder.po_id,
+                PurchaseOrder.status,
+                PurchaseOrder.expected_date,
+                Vendor.name,
+                POLine.qty_ordered,
+                POLine.qty_received,
+            )
+            .join(POLine, POLine.po_id == PurchaseOrder.po_id)
+            .join(Vendor, PurchaseOrder.vendor_id == Vendor.vendor_id, isouter=True)
+            .where(
+                and_(
+                    POLine.item_id == item_id,
+                    POLine.qty_received < POLine.qty_ordered,
+                    PurchaseOrder.status.in_(["open", "partial"]),
+                )
+            )
+            .order_by(PurchaseOrder.expected_date)
+        )
+    ).all()
+
+    incoming = []
+    for po_id, status, expected_date, vendor_name, qty_ordered, qty_received in incoming_rows:
+        qty_ordered_f = float(qty_ordered or 0)
+        qty_received_f = float(qty_received or 0)
+        incoming.append(
+            IncomingPurchaseInfo(
+                po_id=po_id,
+                status=status,
+                expected_date=expected_date,
+                vendor_name=vendor_name,
+                qty_ordered=qty_ordered_f,
+                qty_received=qty_received_f,
+                qty_remaining=max(qty_ordered_f - qty_received_f, 0.0),
+            )
+        )
+
+    total_on_hand = sum(location.qty_on_hand for location in locations)
+
+    return ItemDetailResponse(
+        item=ItemSummary(
+            item_id=item.item_id,
+            sku=item.sku,
+            description=item.description,
+            price=float(item.price),
+            short_code=item.short_code,
+        ),
+        total_on_hand=total_on_hand,
+        locations=locations,
+        incoming=incoming,
+    )

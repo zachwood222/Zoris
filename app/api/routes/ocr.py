@@ -33,17 +33,50 @@ async def upload_ticket(
     session: AsyncSession = Depends(get_session),
     provider: TesseractProvider = Depends(get_provider),
 ) -> OCRSaleTicketResponse:
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+    filename = image.filename or "upload"
+    content_type = image.content_type or ""
+    suffix = Path(filename).suffix.lower()
+    image_suffixes = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".gif"}
+    is_pdf = suffix == ".pdf" or content_type == "application/pdf"
+    is_image = content_type.startswith("image/") or suffix in image_suffixes
+    if not is_pdf and not is_image:
+        raise HTTPException(status_code=400, detail="unsupported_file_type")
+
+    tmp_suffix = suffix if suffix else ""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=tmp_suffix) as tmp:
         content = await image.read()
         tmp.write(content)
         tmp.flush()
-    with open(tmp.name, "rb") as fh:
+        upload_path = Path(tmp.name)
+
+    ocr_input_path = upload_path
+    if is_pdf:
+        try:
+            import fitz  # type: ignore
+        except ImportError as exc:  # pragma: no cover - import guard
+            raise HTTPException(status_code=500, detail="pdf_processing_unavailable") from exc
+
+        pdf = fitz.open(str(upload_path))
+        try:
+            if pdf.page_count == 0:
+                raise HTTPException(status_code=400, detail="empty_pdf")
+            page = pdf.load_page(0)
+            pix = page.get_pixmap(dpi=300)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as pdf_image:
+                pdf_image.write(pix.tobytes("png"))
+                pdf_image.flush()
+                ocr_input_path = Path(pdf_image.name)
+        finally:
+            pdf.close()
+
+    storage_content_type = "application/pdf" if is_pdf else (content_type or "image/jpeg")
+    with open(upload_path, "rb") as fh:
         doc_url = storage_service.upload_file(
-            key=f"tickets/{Path(tmp.name).name}",
+            key=f"tickets/{upload_path.name}",
             fileobj=fh,
-            content_type=image.content_type or "image/jpeg",
+            content_type=storage_content_type,
         )
-    document: OcrDocument = await provider.analyze(tmp.name)
+    document: OcrDocument = await provider.analyze(str(ocr_input_path))
     parsed = await parser.parse_ticket(document)
     parsed_fields: dict[str, object | None] = {
         "customer_name": parsed.customer_name,
@@ -64,8 +97,16 @@ async def upload_ticket(
         sale.total = parsed.total
     session.add(sale)
     await session.flush()
-    session.add(Attachment(ref_type="sale", ref_id=sale.sale_id, file_url=doc_url, kind="photo_ticket"))
+    attachment_kind = "document_ticket" if is_pdf else "photo_ticket"
+    session.add(
+        Attachment(ref_type="sale", ref_id=sale.sale_id, file_url=doc_url, kind=attachment_kind)
+    )
     await session.flush()
+    for path in {ocr_input_path, upload_path}:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
     return OCRSaleTicketResponse(
         sale_id=sale.sale_id,
         parsed_fields=parsed_fields,
