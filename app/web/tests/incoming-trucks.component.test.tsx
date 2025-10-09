@@ -28,27 +28,41 @@ const mockedSubmitTruckUpdate = vi.mocked(submitTruckUpdate);
 
 const baseUpdate: TruckUpdate = {
   update_id: 9001,
-  po_id: 1001,
-  po_number: 'PO-1001',
+  truck_id: 42,
+  update_type: 'status',
+  message: 'Driver checked in at guard shack.',
+  status: 'arrived',
   po_line_id: 501,
   item_id: 2001,
-  item_description: 'Spruce Stud 2x4',
-  quantity: 40,
-  status: 'checked_in',
-  note: 'Driver checked in at guard shack.',
+  quantity: null,
   created_at: '2024-03-01T13:00:00Z',
   created_by: 'Ops Bot'
 };
 
 const incomingTruck: IncomingTruck = {
   truck_id: 42,
+  po_id: 1001,
   reference: 'TRK-2042',
   carrier: 'Cascade Freight',
-  status: 'docked',
-  eta: '2024-03-01T14:00:00Z',
-  door: 'Door 4',
-  po_numbers: ['PO-1001'],
-  updates: [baseUpdate]
+  status: 'scheduled',
+  scheduled_arrival: '2024-03-01T14:00:00Z',
+  arrived_at: null,
+  created_at: '2024-02-28T10:00:00Z',
+  lines: [
+    {
+      truck_line_id: 1,
+      po_line_id: 501,
+      item_id: 2001,
+      description: 'Spruce Stud 2x4',
+      qty_expected: 80
+    }
+  ],
+  updates: {
+    latest_status: 'arrived',
+    note_count: 0,
+    line_progress: [],
+    history: [baseUpdate]
+  }
 };
 
 const searchResult: PoLineSearchResult = {
@@ -83,11 +97,16 @@ describe('incoming trucks workspace component', () => {
       hasSearched: query.trim().length >= 2
     }));
     mockedSubmitTruckUpdate.mockResolvedValue({
-      ...baseUpdate,
       update_id: 9002,
-      status: 'unloading',
-      note: 'Unloading pallets now.',
-      quantity: 20
+      truck_id: 42,
+      update_type: 'line_progress',
+      message: 'Unloading pallets now.',
+      status: null,
+      po_line_id: 501,
+      item_id: 2001,
+      quantity: 20,
+      created_at: '2024-03-01T13:30:00Z',
+      created_by: 'Ops Bot'
     });
   });
 
@@ -97,7 +116,7 @@ describe('incoming trucks workspace component', () => {
     expect(screen.getByRole('heading', { name: /incoming trucks/i })).toBeInTheDocument();
     expect(screen.getByText(/TRK-2042/)).toBeInTheDocument();
     expect(screen.getByText(/Cascade Freight/)).toBeInTheDocument();
-    expect(screen.getByText(/PO PO-1001/i)).toBeInTheDocument();
+    expect(screen.getByText(/#1001/)).toBeInTheDocument();
     expect(screen.getByText(/Driver checked in at guard shack/i)).toBeInTheDocument();
   });
 
@@ -114,7 +133,7 @@ describe('incoming trucks workspace component', () => {
     const option = await within(dialog).findByRole('option', { name: /PO-1001/ });
     await user.click(option);
 
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: /status/i }), 'unloading');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: /update type/i }), 'line_progress');
     await user.type(within(dialog).getByLabelText(/quantity/i), '18');
     await user.type(within(dialog).getByLabelText(/notes/i), 'Dock door 5 now unloading');
 
@@ -127,22 +146,17 @@ describe('incoming trucks workspace component', () => {
     const [truckId, payload, context] = mockedSubmitTruckUpdate.mock.calls.at(-1)!;
     expect(truckId).toBe(incomingTruck.truck_id);
     expect(payload).toMatchObject({
-      po_id: searchResult.po_id,
       po_line_id: searchResult.po_line_id,
       item_id: searchResult.item_id,
-      status: 'unloading',
+      update_type: 'line_progress',
       quantity: 18,
-      note: 'Dock door 5 now unloading'
+      message: 'Dock door 5 now unloading'
     });
-    expect(context.metadata).toMatchObject({
-      poId: searchResult.po_id,
-      poNumber: searchResult.po_number,
-      poLineId: searchResult.po_line_id,
-      itemId: searchResult.item_id
-    });
+    expect(context).toHaveProperty('current');
+    expect(context).toHaveProperty('mutate');
 
     await waitFor(() => {
-      expect(screen.getByText(/Update logged for PO-1001/i)).toBeInTheDocument();
+      expect(screen.getByText(/Update logged successfully/i)).toBeInTheDocument();
     });
   });
 });

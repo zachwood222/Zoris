@@ -8,54 +8,68 @@ import {
   type PoLineSearchResult,
   type TruckStatus,
   type TruckUpdateStatus,
+  type TruckUpdateType,
   submitTruckUpdate,
   useIncomingTrucks,
   usePoLineSearch
 } from '../../lib/incoming-trucks';
 
 const truckStatusLabels: Record<TruckStatus, string> = {
-  en_route: 'En route',
-  checked_in: 'Checked in',
-  docked: 'Docked',
+  scheduled: 'Scheduled',
+  arrived: 'Arrived',
   unloading: 'Unloading',
-  complete: 'Complete',
-  issue: 'Attention'
+  completed: 'Completed',
+  cancelled: 'Cancelled'
 };
 
 const truckStatusStyles: Record<TruckStatus, string> = {
-  en_route: 'border-sky-400/40 bg-sky-500/10 text-sky-100',
-  checked_in: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100',
-  docked: 'border-indigo-400/40 bg-indigo-500/10 text-indigo-100',
+  scheduled: 'border-sky-400/40 bg-sky-500/10 text-sky-100',
+  arrived: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100',
   unloading: 'border-amber-400/40 bg-amber-500/10 text-amber-100',
-  complete: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
-  issue: 'border-rose-400/40 bg-rose-500/10 text-rose-100'
+  completed: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
+  cancelled: 'border-rose-400/40 bg-rose-500/10 text-rose-100'
 };
 
 const updateStatusLabels: Record<TruckUpdateStatus, string> = {
-  en_route: 'En route',
-  checked_in: 'Checked in',
-  docked: 'Docked',
+  scheduled: 'Scheduled',
+  arrived: 'Arrived',
   unloading: 'Unloading',
-  complete: 'Complete',
-  issue: 'Issue'
+  completed: 'Completed',
+  cancelled: 'Cancelled'
 };
 
 const updateStatusStyles: Record<TruckUpdateStatus, string> = {
-  en_route: 'border-sky-400/40 bg-sky-500/10 text-sky-100',
-  checked_in: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100',
-  docked: 'border-indigo-400/40 bg-indigo-500/10 text-indigo-100',
+  scheduled: 'border-sky-400/40 bg-sky-500/10 text-sky-100',
+  arrived: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100',
   unloading: 'border-amber-400/40 bg-amber-500/10 text-amber-100',
-  complete: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
-  issue: 'border-rose-400/40 bg-rose-500/10 text-rose-100'
+  completed: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
+  cancelled: 'border-rose-400/40 bg-rose-500/10 text-rose-100'
+};
+
+const updateTypeLabels: Record<TruckUpdateType, string> = {
+  status: 'Status update',
+  note: 'Note',
+  line_progress: 'Line progress'
+};
+
+const updateTypeStyles: Record<TruckUpdateType, string> = {
+  status: 'border-slate-400/40 bg-slate-500/10 text-slate-200',
+  note: 'border-slate-400/40 bg-slate-500/10 text-slate-200',
+  line_progress: 'border-amber-400/40 bg-amber-500/10 text-amber-100'
 };
 
 const statusOptions: { value: TruckUpdateStatus; label: string }[] = [
-  { value: 'checked_in', label: 'Checked in' },
-  { value: 'docked', label: 'Docked' },
+  { value: 'arrived', label: 'Arrived' },
   { value: 'unloading', label: 'Unloading' },
-  { value: 'complete', label: 'Complete' },
-  { value: 'issue', label: 'Issue' },
-  { value: 'en_route', label: 'En route' }
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'scheduled', label: 'Scheduled' }
+];
+
+const updateTypeOptions: { value: TruckUpdateType; label: string }[] = [
+  { value: 'status', label: 'Status update' },
+  { value: 'note', label: 'Note' },
+  { value: 'line_progress', label: 'Line progress' }
 ];
 
 function formatDateTime(value: string) {
@@ -82,27 +96,15 @@ function formatTime(value: string) {
   });
 }
 
-function uniquePoNumbers(truck: IncomingTruck): string[] {
-  if (truck.po_numbers && truck.po_numbers.length > 0) {
-    return truck.po_numbers;
-  }
-  const numbers = new Set<string>();
-  truck.updates.forEach((update) => {
-    if (update.po_number) {
-      numbers.add(update.po_number);
-    }
-  });
-  return Array.from(numbers);
-}
-
 export default function IncomingTrucksPage() {
   const { trucks, data, isLoading, isValidating, error, mutate } = useIncomingTrucks();
   const [activeTruckId, setActiveTruckId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [status, setStatus] = useState<TruckUpdateStatus>('checked_in');
+  const [updateType, setUpdateType] = useState<TruckUpdateType>('status');
+  const [status, setStatus] = useState<TruckUpdateStatus>('arrived');
   const [quantity, setQuantity] = useState('');
-  const [note, setNote] = useState('');
+  const [message, setMessage] = useState('');
   const [selectedLine, setSelectedLine] = useState<PoLineSearchResult | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -119,9 +121,10 @@ export default function IncomingTrucksPage() {
     setActiveTruckId(truck.truck_id);
     setIsModalOpen(true);
     setSearchQuery('');
-    setStatus('checked_in');
+    setUpdateType('status');
+    setStatus('arrived');
     setQuantity('');
-    setNote('');
+    setMessage('');
     setSelectedLine(null);
     setFormError(null);
   };
@@ -132,8 +135,9 @@ export default function IncomingTrucksPage() {
     setSelectedLine(null);
     setSearchQuery('');
     setQuantity('');
-    setNote('');
+    setMessage('');
     setFormError(null);
+    setSubmitting(false);
   };
 
   const handleSelectLine = (line: PoLineSearchResult) => {
@@ -147,14 +151,23 @@ export default function IncomingTrucksPage() {
     if (!activeTruck) {
       return;
     }
-    if (!selectedLine) {
-      setFormError('Select a PO line to link this update.');
-      return;
-    }
-
     const trimmedQuantity = quantity.trim();
     const parsedQuantity = trimmedQuantity ? Number(trimmedQuantity) : null;
-    if (trimmedQuantity && Number.isNaN(parsedQuantity)) {
+
+    if (updateType === 'line_progress') {
+      if (!selectedLine) {
+        setFormError('Select a PO line to record progress.');
+        return;
+      }
+      if (!trimmedQuantity) {
+        setFormError('Enter a quantity for line progress updates.');
+        return;
+      }
+      if (Number.isNaN(parsedQuantity)) {
+        setFormError('Enter a numeric quantity.');
+        return;
+      }
+    } else if (trimmedQuantity && Number.isNaN(parsedQuantity)) {
       setFormError('Enter a numeric quantity.');
       return;
     }
@@ -163,31 +176,32 @@ export default function IncomingTrucksPage() {
     setFormError(null);
 
     try {
+      const payload = {
+        update_type: updateType,
+        message: message.trim() ? message.trim() : undefined,
+        status: updateType === 'status' ? status : undefined,
+        quantity:
+          updateType === 'line_progress'
+            ? parsedQuantity
+            : trimmedQuantity
+              ? parsedQuantity
+              : undefined,
+        po_line_id: selectedLine?.po_line_id ?? undefined,
+        item_id: selectedLine?.item_id ?? undefined
+      };
+
       await submitTruckUpdate(
         activeTruck.truck_id,
-        {
-          po_id: selectedLine.po_id,
-          po_line_id: selectedLine.po_line_id,
-          item_id: selectedLine.item_id,
-          status,
-          quantity: parsedQuantity,
-          note: note.trim()
-        },
+        payload,
         {
           mutate,
-          current: data,
-          metadata: {
-            poId: selectedLine.po_id,
-            poNumber: selectedLine.po_number,
-            poLineId: selectedLine.po_line_id,
-            itemId: selectedLine.item_id,
-            itemDescription: selectedLine.item_description
-          }
+          current: data
         }
       );
+      setSubmitting(false);
       setFeedback({
         type: 'success',
-        message: `Update logged for ${selectedLine.po_number}.`
+        message: 'Update logged successfully.'
       });
       closeModal();
     } catch (err) {
@@ -267,7 +281,7 @@ export default function IncomingTrucksPage() {
 
         <ul className="grid gap-6 lg:grid-cols-2">
           {trucks.map((truck) => {
-            const poNumbers = uniquePoNumbers(truck);
+            const currentStatus = truck.updates.latest_status ?? truck.status;
             return (
               <li
                 key={truck.truck_id}
@@ -277,29 +291,29 @@ export default function IncomingTrucksPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-semibold text-white">{truck.reference}</h2>
-                      <p className="text-sm text-slate-300">{truck.carrier}</p>
+                      <p className="text-sm text-slate-300">{truck.carrier ?? '—'}</p>
                     </div>
                     <span
                       className={clsx(
                         'inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs font-semibold uppercase tracking-[0.35em]',
-                        truckStatusStyles[truck.status] ?? truckStatusStyles.en_route
+                        truckStatusStyles[currentStatus] ?? truckStatusStyles.scheduled
                       )}
                     >
-                      {truckStatusLabels[truck.status] ?? truckStatusLabels.en_route}
+                      {truckStatusLabels[currentStatus] ?? truckStatusLabels.scheduled}
                     </span>
                   </div>
                   <div className="grid gap-3 text-xs text-slate-300 sm:grid-cols-3">
                     <div>
-                      <p className="uppercase tracking-[0.35em] text-slate-400">ETA</p>
-                      <p className="mt-1 text-sm text-white">{formatDateTime(truck.eta)}</p>
+                      <p className="uppercase tracking-[0.35em] text-slate-400">Scheduled</p>
+                      <p className="mt-1 text-sm text-white">{truck.scheduled_arrival ? formatDateTime(truck.scheduled_arrival) : '—'}</p>
                     </div>
                     <div>
-                      <p className="uppercase tracking-[0.35em] text-slate-400">Door</p>
-                      <p className="mt-1 text-sm text-white">{truck.door ?? '—'}</p>
+                      <p className="uppercase tracking-[0.35em] text-slate-400">Arrived</p>
+                      <p className="mt-1 text-sm text-white">{truck.arrived_at ? formatDateTime(truck.arrived_at) : '—'}</p>
                     </div>
                     <div>
-                      <p className="uppercase tracking-[0.35em] text-slate-400">Linked POs</p>
-                      <p className="mt-1 text-sm text-white">{poNumbers.length > 0 ? poNumbers.join(', ') : '—'}</p>
+                      <p className="uppercase tracking-[0.35em] text-slate-400">PO</p>
+                      <p className="mt-1 text-sm text-white">#{truck.po_id}</p>
                     </div>
                   </div>
                 </div>
@@ -315,40 +329,68 @@ export default function IncomingTrucksPage() {
                   </button>
                 </div>
 
-                {truck.updates.length === 0 ? (
+                {truck.updates.history.length === 0 ? (
                   <p className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-5 text-sm text-slate-300">
                     No updates logged yet. Capture a quick status to let the floor know what’s happening.
                   </p>
                 ) : (
-                  <ul className="space-y-4">
-                    {truck.updates.map((update) => (
-                      <li
-                        key={update.update_id}
-                        className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200"
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <span
-                            className={clsx(
-                              'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em]',
-                              updateStatusStyles[update.status] ?? updateStatusStyles.en_route
-                            )}
+                  <div className="space-y-5">
+                    {truck.updates.line_progress.length > 0 ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">Line progress</h4>
+                        <ul className="mt-4 space-y-3 text-xs text-slate-200">
+                          {truck.updates.line_progress.map((entry) => (
+                            <li key={entry.po_line_id} className="flex items-center justify-between gap-4">
+                              <span className="text-sm text-white">PO Line #{entry.po_line_id}</span>
+                              <span className="text-xs text-slate-300">
+                                Item {entry.item_id ?? '—'} • Qty {entry.total_quantity}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    <ul className="space-y-4">
+                      {truck.updates.history.map((update) => {
+                        const isStatusUpdate = update.update_type === 'status' && update.status;
+                        const badgeClass = isStatusUpdate
+                          ? updateStatusStyles[update.status as TruckUpdateStatus]
+                          : updateTypeStyles[update.update_type];
+                        const badgeLabel = isStatusUpdate
+                          ? updateStatusLabels[update.status as TruckUpdateStatus]
+                          : updateTypeLabels[update.update_type];
+
+                        return (
+                          <li
+                            key={update.update_id}
+                            className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200"
                           >
-                            {updateStatusLabels[update.status] ?? updateStatusLabels.en_route}
-                          </span>
-                          <time className="text-xs text-slate-400">{formatTime(update.created_at)}</time>
-                        </div>
-                        <p className="mt-3 text-sm font-semibold text-white">
-                          PO {update.po_number} • {update.item_description}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-300">
-                          Qty {update.quantity ?? '—'} • Logged by {update.created_by}
-                        </p>
-                        {update.note ? (
-                          <p className="mt-3 text-sm text-slate-200">{update.note}</p>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
+                            <div className="flex items-center justify-between gap-4">
+                              <span
+                                className={clsx(
+                                  'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em]',
+                                  badgeClass
+                                )}
+                              >
+                                {badgeLabel}
+                              </span>
+                              <time className="text-xs text-slate-400">{formatTime(update.created_at)}</time>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-300">
+                              {update.po_line_id ? `PO Line ${update.po_line_id}` : 'General'}
+                              {update.item_id ? ` • Item ${update.item_id}` : ''}
+                              {typeof update.quantity === 'number' ? ` • Qty ${update.quantity}` : ''}
+                              {update.created_by ? ` • Logged by ${update.created_by}` : ''}
+                            </p>
+                            {update.message ? (
+                              <p className="mt-3 text-sm text-slate-200">{update.message}</p>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 )}
               </li>
             );
@@ -382,9 +424,27 @@ export default function IncomingTrucksPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+              <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
+                <span>Update type</span>
+                <select
+                  value={updateType}
+                  onChange={(event) => {
+                    setUpdateType(event.target.value as TruckUpdateType);
+                    setFormError(null);
+                  }}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                >
+                  {updateTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value} className="bg-slate-900 text-slate-900">
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <div className="space-y-2">
                 <label htmlFor="po-search" className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
-                  Link to PO line
+                  Link to PO line {updateType === 'line_progress' ? '(required)' : '(optional)'}
                 </label>
                 <input
                   id="po-search"
@@ -446,7 +506,7 @@ export default function IncomingTrucksPage() {
                 ) : null}
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              {updateType === 'status' ? (
                 <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
                   <span>Status</span>
                   <select
@@ -461,6 +521,9 @@ export default function IncomingTrucksPage() {
                     ))}
                   </select>
                 </label>
+              ) : null}
+
+              {updateType === 'line_progress' ? (
                 <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
                   <span>Quantity</span>
                   <input
@@ -472,15 +535,15 @@ export default function IncomingTrucksPage() {
                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
                   />
                 </label>
-              </div>
+              ) : null}
 
               <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
                 <span>Notes</span>
                 <textarea
                   id="notes"
                   rows={3}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
                   className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
                 />
               </label>
