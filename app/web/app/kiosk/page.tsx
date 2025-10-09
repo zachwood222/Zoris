@@ -2,6 +2,7 @@
 
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { apiBase } from '@/app/web/lib/api';
 
 interface ItemSummary {
   item_id: number;
@@ -9,6 +10,30 @@ interface ItemSummary {
   description: string;
   price: number;
   short_code: string;
+}
+
+interface ItemLocationInfo {
+  location_id: number;
+  location_name: string;
+  qty_on_hand: number;
+  qty_reserved: number;
+}
+
+interface IncomingPurchaseInfo {
+  po_id: number;
+  status: string;
+  expected_date: string | null;
+  vendor_name: string | null;
+  qty_ordered: number;
+  qty_received: number;
+  qty_remaining: number;
+}
+
+interface ItemDetail {
+  item: ItemSummary;
+  total_on_hand: number;
+  locations: ItemLocationInfo[];
+  incoming: IncomingPurchaseInfo[];
 }
 
 interface SaleLineDraft {
@@ -56,13 +81,14 @@ export default function KioskPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemSummary | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<ItemDetail | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!query.trim()) {
+    if (!query) {
       setResults([]);
       setIsSearching(false);
       setSearchError(null);
@@ -75,19 +101,21 @@ export default function KioskPage() {
 
     const handler = setTimeout(async () => {
       try {
-        const response = await axios.get<ItemSummary[]>(`${API_BASE}/items/search`, {
+        const response = await axios.get<ItemSummary[]>(`${apiBase}/items/search`, {
           params: { q: query },
           signal: controller.signal
         });
         setResults(response.data);
       } catch (error) {
-        if (axios.isCancel(error)) {
+        if (controller.signal.aborted) {
           return;
         }
         console.error(error);
         setSearchError('Unable to load matching items right now.');
       } finally {
-        setIsSearching(false);
+        if (!controller.signal.aborted) {
+          setIsSearching(false);
+        }
       }
     }, 200);
 
@@ -118,9 +146,7 @@ export default function KioskPage() {
       setSelectedDetail(null);
 
       try {
-        const response = await axios.get<ItemDetail>(`${API_BASE}/items/${selectedItem.item_id}`, {
-          signal: controller.signal
-        });
+        const response = await axios.get<ItemDetail>(`${apiBase}/items/${selectedItem.item_id}`);
         if (!cancelled) {
           setSelectedDetail(response.data);
         }
@@ -202,40 +228,6 @@ export default function KioskPage() {
   const formatCurrency = (value: number) =>
     value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
-  const finalize = async () => {
-    if (lines.length === 0) {
-      return;
-    }
-
-    setIsFinalizing(true);
-    setStatus(null);
-
-    try {
-      const { data: create } = await axios.post(`${API_BASE}/sales`, {
-        created_by: 'kiosk',
-        source: 'kiosk'
-      });
-      const saleId = create.sale_id;
-
-      for (const line of lines) {
-        await axios.post(`${API_BASE}/sales/${saleId}/add-line`, {
-          sku: line.item.sku,
-          qty: line.qty,
-          location_id: 1
-        });
-      }
-
-      const { data: finalizeData } = await axios.post(`${API_BASE}/sales/${saleId}/finalize`);
-      setStatus({ kind: 'success', message: `Sale #${finalizeData.sale_id} finalized successfully.` });
-      setLines([]);
-    } catch (error) {
-      console.error(error);
-      setStatus({ kind: 'error', message: 'We were unable to finalize that sale. Try again shortly.' });
-    } finally {
-      setIsFinalizing(false);
-    }
-  };
-
   const openItemDetail = (item: ItemSummary) => {
     setSelectedItem(item);
   };
@@ -260,26 +252,73 @@ export default function KioskPage() {
     });
   };
 
-  const uploadPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files?.length) {
-      return;
-    }
+  const finalize = async () => {
+    setIsFinalizing(true);
+    setStatus(null);
 
-    const file = event.target.files[0];
+    try {
+      const { data: create } = await axios.post<{ sale_id: number }>(`${apiBase}/sales`, {
+        created_by: 'kiosk',
+        source: 'kiosk'
+      });
+      const saleId = create.sale_id;
+
+      for (const line of lines) {
+        await axios.post(`${apiBase}/sales/${saleId}/add-line`, {
+          sku: line.item.sku,
+          qty: line.qty,
+          location_id: 1
+        });
+      }
+
+      const { data: finalizeData } = await axios.post<{ sale_id: number }>(
+        `${apiBase}/sales/${saleId}/finalize`
+      );
+
+      setStatus({
+        kind: 'success',
+        message: `Sale #${finalizeData.sale_id} finalized successfully.`
+      });
+      setLines([]);
+    } catch (error) {
+      console.error(error);
+      setStatus({
+        kind: 'error',
+        message: 'We were unable to finalize that sale. Try again shortly.'
+      });
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
+  const uploadPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.target;
+    if (!input.files?.length) return;
+
+    const file = input.files[0];
     const form = new FormData();
     form.append('image', file);
 
+    setIsUploading(true);
+    setStatus(null);
+
     try {
-      setStatus(null);
-      const { data } = await axios.post(`${API_BASE}/ocr/sale-ticket`, form, {
+      const { data } = await axios.post<{ sale_id: number }>(`${apiBase}/ocr/sale-ticket`, form, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      setStatus({ kind: 'success', message: `Draft ticket #${data.sale_id} created for review.` });
+      setStatus({
+        kind: 'success',
+        message: `Draft ticket #${data.sale_id} created for review.`
+      });
     } catch (error) {
       console.error(error);
-      setStatus({ kind: 'error', message: 'We were unable to read that ticket. Try another photo.' });
+      setStatus({
+        kind: 'error',
+        message: 'We were unable to process that ticket image. Try again shortly.'
+      });
     } finally {
-      event.target.value = '';
+      setIsUploading(false);
+      input.value = '';
     }
   };
 
@@ -290,28 +329,30 @@ export default function KioskPage() {
           <h1 className="text-3xl font-bold">Sales Kiosk</h1>
           <p className="text-sm text-slate-300">Scan or search items to build a ticket.</p>
         </div>
-        <label className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 shadow-lg shadow-emerald-500/15 transition hover:border-emerald-300 hover:text-emerald-50">
-          Upload Ticket
-          <input type="file" accept="image/*,.pdf" className="hidden" onChange={uploadPhoto} />
+        <label
+          className={`rounded px-4 py-2 font-semibold shadow transition ${
+            isUploading
+              ? 'cursor-not-allowed bg-emerald-700/60 text-emerald-200'
+              : 'cursor-pointer bg-emerald-600 hover:bg-emerald-500'
+          }`}
+        >
+          {isUploading ? 'Uploading…' : 'Upload Ticket'}
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            className="hidden"
+            onChange={uploadPhoto}
+            disabled={isUploading}
+          />
         </label>
       </header>
 
-      {status && (
-        <div
-          className={`rounded-2xl border px-4 py-3 text-sm font-medium shadow-lg ${
-            status.kind === 'success'
-              ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-100'
-              : 'border-rose-400/60 bg-rose-500/10 text-rose-100'
-          }`}
-        >
-          {status.message}
-        </div>
-      )}
-
-      <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="flex flex-col gap-5 rounded-3xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-[0_40px_80px_-40px_rgba(15,118,110,0.35)] backdrop-blur">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Catalog search</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">
+              Catalog search
+            </div>
             <h2 className="mt-2 text-2xl font-semibold text-white">Find items to add</h2>
           </div>
           <div className="relative">
@@ -328,7 +369,9 @@ export default function KioskPage() {
               }}
             />
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-5 text-sm text-slate-500">
-              {isSearching ? 'Searching…' : `${results.length} match${results.length === 1 ? '' : 'es'}`}
+              {isSearching
+                ? 'Searching…'
+                : `${results.length} match${results.length === 1 ? '' : 'es'}`}
             </div>
           </div>
           {searchError && <p className="text-sm text-rose-200/80">{searchError}</p>}
@@ -354,10 +397,14 @@ export default function KioskPage() {
                         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-800/60"
                       >
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold tracking-wide text-slate-100">{item.sku}</div>
+                          <div className="truncate text-sm font-semibold tracking-wide text-slate-100">
+                            {item.sku}
+                          </div>
                           <div className="mt-1 truncate text-xs text-slate-400">{item.description}</div>
                           {item.short_code && (
-                            <div className="mt-1 text-[0.65rem] uppercase tracking-[0.4em] text-emerald-400/70">{item.short_code}</div>
+                            <div className="mt-1 text-[0.65rem] uppercase tracking-[0.4em] text-emerald-400/70">
+                              {item.short_code}
+                            </div>
                           )}
                         </div>
                         <div className="text-right text-base font-semibold text-emerald-300">
@@ -465,7 +512,19 @@ export default function KioskPage() {
             )}
           </button>
         </aside>
-      </div>
+      </section>
+
+      {status && (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            status.kind === 'error'
+              ? 'border-rose-500/60 bg-rose-500/10 text-rose-100'
+              : 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100'
+          }`}
+        >
+          {status.message}
+        </div>
+      )}
 
       {selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
@@ -494,7 +553,9 @@ export default function KioskPage() {
                 <>
                   <div className="flex items-center justify-between rounded-lg bg-slate-100 px-4 py-3">
                     <span className="text-sm font-medium text-slate-600">Price</span>
-                    <span className="text-lg font-semibold text-slate-900">${selectedDetail.item.price.toFixed(2)}</span>
+                    <span className="text-lg font-semibold text-slate-900">
+                      {formatCurrency(selectedDetail.item.price)}
+                    </span>
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-slate-600">Quantity on hand</h3>
@@ -536,7 +597,10 @@ export default function KioskPage() {
                         </div>
                         <ul className="mt-3 space-y-2 text-sm text-slate-600">
                           {selectedDetail.incoming.map((incoming) => (
-                            <li key={`${incoming.po_id}-${incoming.expected_date ?? 'none'}`} className="rounded border border-slate-200 px-3 py-2">
+                            <li
+                              key={`${incoming.po_id}-${incoming.expected_date ?? 'none'}`}
+                              className="rounded border border-slate-200 px-3 py-2"
+                            >
                               <div className="flex items-center justify-between">
                                 <span className="font-medium">PO #{incoming.po_id}</span>
                                 <span className="text-xs uppercase tracking-wide text-slate-400">{incoming.status}</span>
