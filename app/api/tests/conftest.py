@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
-from ..config import Settings
 from ..db import get_session
 from ..main import app
 
