@@ -87,7 +87,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000"],
         alias="CORS_ORIGINS",
-        description="Comma-separated list of allowed CORS origins for the API.",
+        json_schema_extra={
+            "description": "Comma-separated list of allowed CORS origins for the API.",
+        },
     )
 
     @field_validator("cors_origins", mode="before")
