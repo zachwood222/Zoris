@@ -60,6 +60,22 @@ delivery_status_enum = Enum(
     name="delivery_status_enum",
     create_constraint=True,
 )
+incoming_truck_status_enum = Enum(
+    "scheduled",
+    "arrived",
+    "unloading",
+    "completed",
+    "cancelled",
+    name="incoming_truck_status_enum",
+    create_constraint=True,
+)
+incoming_truck_update_type_enum = Enum(
+    "status",
+    "note",
+    "line_progress",
+    name="incoming_truck_update_type_enum",
+    create_constraint=True,
+)
 location_type_enum = Enum("floor", "backroom", "warehouse", name="location_type_enum")
 barcode_type_enum = Enum("item", "variant", "lot", "serial", name="barcode_type_enum")
 attachment_ref_enum = Enum("sale", "po", "bill", "receiving", name="attachment_ref_enum")
@@ -167,6 +183,7 @@ class PurchaseOrder(Base, TimestampMixin):
     vendor: Mapped[Vendor] = relationship(back_populates="purchase_orders")
     lines: Mapped[list["POLine"]] = relationship(back_populates="po", cascade="all, delete-orphan")
     receivings: Mapped[list["Receiving"]] = relationship(back_populates="po")
+    incoming_trucks: Mapped[list["IncomingTruck"]] = relationship(back_populates="po")
 
 
 class POLine(Base, TimestampMixin):
@@ -310,6 +327,59 @@ class LabelTemplate(Base, TimestampMixin):
     dymo_label_xml: Mapped[str] = mapped_column(Text)
 
 
+class IncomingTruck(Base, TimestampMixin):
+    __tablename__ = "incoming_truck"
+
+    truck_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    po_id: Mapped[int] = mapped_column(ForeignKey("po.po_id"))
+    reference: Mapped[str] = mapped_column(String(100))
+    carrier: Mapped[Optional[str]] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(incoming_truck_status_enum, default="scheduled")
+    scheduled_arrival: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    arrived_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    po: Mapped[PurchaseOrder] = relationship(back_populates="incoming_trucks")
+    lines: Mapped[list["IncomingTruckLine"]] = relationship(
+        back_populates="truck", cascade="all, delete-orphan"
+    )
+    updates: Mapped[list["IncomingTruckUpdate"]] = relationship(
+        back_populates="truck", cascade="all, delete-orphan"
+    )
+
+
+class IncomingTruckLine(Base, TimestampMixin):
+    __tablename__ = "incoming_truck_line"
+
+    truck_line_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    truck_id: Mapped[int] = mapped_column(ForeignKey("incoming_truck.truck_id"))
+    po_line_id: Mapped[int] = mapped_column(ForeignKey("po_line.po_line_id"))
+    item_id: Mapped[int] = mapped_column(ForeignKey("item.item_id"))
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    qty_expected: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+
+    truck: Mapped[IncomingTruck] = relationship(back_populates="lines")
+    po_line: Mapped[POLine] = relationship()
+    item: Mapped[Item] = relationship()
+
+
+class IncomingTruckUpdate(Base, TimestampMixin):
+    __tablename__ = "incoming_truck_update"
+
+    update_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    truck_id: Mapped[int] = mapped_column(ForeignKey("incoming_truck.truck_id"))
+    update_type: Mapped[str] = mapped_column(incoming_truck_update_type_enum)
+    message: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[Optional[str]] = mapped_column(incoming_truck_status_enum)
+    po_line_id: Mapped[Optional[int]] = mapped_column(ForeignKey("po_line.po_line_id"))
+    item_id: Mapped[Optional[int]] = mapped_column(ForeignKey("item.item_id"))
+    quantity: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+    created_by: Mapped[Optional[str]] = mapped_column(String(100))
+
+    truck: Mapped[IncomingTruck] = relationship(back_populates="updates")
+    po_line: Mapped[Optional[POLine]] = relationship()
+    item: Mapped[Optional[Item]] = relationship()
+
+
 __all__ = [
     "Vendor",
     "Item",
@@ -327,4 +397,7 @@ __all__ = [
     "Barcode",
     "Attachment",
     "LabelTemplate",
+    "IncomingTruck",
+    "IncomingTruckLine",
+    "IncomingTruckUpdate",
 ]
