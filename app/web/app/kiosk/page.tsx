@@ -95,7 +95,12 @@ export default function KioskPage() {
         </div>
         <label className="rounded bg-emerald-600 px-4 py-2 font-semibold shadow">
           Upload Ticket
-          <input type="file" accept="image/*" className="hidden" onChange={uploadPhoto} />
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            className="hidden"
+            onChange={uploadPhoto}
+          />
         </label>
       </header>
 

@@ -185,18 +185,49 @@ export default function ReviewPage() {
                 </h3>
                 {saleDetail.attachments.length ? (
                   <div className="mt-3 space-y-3">
-                    {saleDetail.attachments.map((attachment) => (
-                      <figure key={attachment.attachment_id} className="space-y-2">
-                        <img
-                          src={attachment.file_url}
-                          alt={`Ticket attachment ${attachment.attachment_id}`}
-                          className="w-full rounded border border-slate-200 object-contain"
-                        />
-                        <figcaption className="text-xs text-slate-500">
-                          Uploaded {new Date(attachment.created_at).toLocaleString()}
-                        </figcaption>
-                      </figure>
-                    ))}
+                    {saleDetail.attachments.map((attachment) => {
+                      const fileUrl = attachment.file_url;
+                      const isPdf =
+                        attachment.kind === 'document_ticket' ||
+                        fileUrl.toLowerCase().endsWith('.pdf');
+                      return (
+                        <figure key={attachment.attachment_id} className="space-y-2">
+                          {isPdf ? (
+                            <object
+                              data={fileUrl}
+                              type="application/pdf"
+                              className="h-96 w-full rounded border border-slate-200"
+                            >
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-sm text-emerald-600 hover:underline"
+                              >
+                                View PDF attachment
+                              </a>
+                            </object>
+                          ) : (
+                            <img
+                              src={fileUrl}
+                              alt={`Ticket attachment ${attachment.attachment_id}`}
+                              className="w-full rounded border border-slate-200 object-contain"
+                            />
+                          )}
+                          <figcaption className="flex items-center justify-between text-xs text-slate-500">
+                            <span>Uploaded {new Date(attachment.created_at).toLocaleString()}</span>
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-600 hover:underline"
+                            >
+                              Download
+                            </a>
+                          </figcaption>
+                        </figure>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="mt-2 text-sm text-slate-500">No attachments linked to this sale.</p>
