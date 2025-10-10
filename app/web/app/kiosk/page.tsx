@@ -2,7 +2,7 @@
 
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { apiBase } from '@/app/web/lib/api';
+import { apiBase } from '../../lib/api';
 
 interface ItemSummary {
   item_id: number;
