@@ -23,6 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
+from ..utils.datetime import utc_now
 
 
 sale_status_enum = Enum(
@@ -145,7 +146,7 @@ class Inventory(Base, TimestampMixin):
     qty_on_hand: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     qty_reserved: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     avg_cost: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
-    last_counted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    last_counted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     item: Mapped[Item] = relationship()
     location: Mapped[Location] = relationship(back_populates="inventory")
@@ -166,7 +167,7 @@ class InventoryTxn(Base):
     ref_id: Mapped[Optional[int]]
     unit_cost: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     created_by: Mapped[Optional[str]]
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 class PurchaseOrder(Base, TimestampMixin):
@@ -175,7 +176,7 @@ class PurchaseOrder(Base, TimestampMixin):
     po_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     vendor_id: Mapped[int] = mapped_column(ForeignKey("vendor.vendor_id"))
     status: Mapped[str] = mapped_column(po_status_enum, default="draft")
-    expected_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    expected_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     terms: Mapped[Optional[str]]
     notes: Mapped[Optional[str]]
     created_by: Mapped[str]
@@ -209,7 +210,7 @@ class Receiving(Base, TimestampMixin):
 
     receipt_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     po_id: Mapped[int] = mapped_column(ForeignKey("po.po_id"))
-    received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     received_by: Mapped[str]
     doc_url: Mapped[Optional[str]]
 
@@ -247,7 +248,7 @@ class Sale(Base, TimestampMixin):
     sale_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     customer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("customer.customer_id"))
     status: Mapped[str] = mapped_column(sale_status_enum, default="draft")
-    sale_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    sale_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     subtotal: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     tax: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     total: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
@@ -335,8 +336,8 @@ class IncomingTruck(Base, TimestampMixin):
     reference: Mapped[str] = mapped_column(String(100))
     carrier: Mapped[Optional[str]] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(incoming_truck_status_enum, default="scheduled")
-    scheduled_arrival: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    arrived_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    scheduled_arrival: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    arrived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     po: Mapped[PurchaseOrder] = relationship(back_populates="incoming_trucks")
     lines: Mapped[list["IncomingTruckLine"]] = relationship(

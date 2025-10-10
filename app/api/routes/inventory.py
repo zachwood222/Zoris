@@ -1,7 +1,6 @@
 """Inventory endpoints."""
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
@@ -11,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..models.domain import Inventory, InventoryTxn
 from ..schemas.common import InventoryAdjustRequest, InventoryTransferRequest
+from ..utils.datetime import utc_now
 
 router = APIRouter()
 
@@ -43,7 +43,7 @@ async def adjust_inventory(payload: InventoryAdjustRequest, session: AsyncSessio
         reason=payload.reason,
         ref_type="manual_adjust",
         unit_cost=inventory.avg_cost,
-        created_at=datetime.utcnow(),
+        created_at=utc_now(),
     )
     session.add(txn)
     await session.flush()

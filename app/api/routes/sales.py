@@ -1,8 +1,6 @@
 """Sales endpoints."""
 from __future__ import annotations
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +20,7 @@ from ..schemas.common import (
 )
 from ..security import User, require_roles
 from ..services import zapier
+from ..utils.datetime import utc_now
 
 router = APIRouter()
 
@@ -131,7 +130,7 @@ async def finalize_sale(sale_id: int, session: AsyncSession = Depends(get_sessio
     if not sale:
         raise HTTPException(status_code=404, detail="sale_not_found")
     sale.status = "open"
-    sale.sale_date = datetime.utcnow()
+    sale.sale_date = utc_now()
     for line in sale.lines:
         session.add(
             InventoryTxn(
@@ -142,7 +141,7 @@ async def finalize_sale(sale_id: int, session: AsyncSession = Depends(get_sessio
                 ref_type="sale",
                 ref_id=sale.sale_id,
                 unit_cost=line.unit_price,
-                created_at=datetime.utcnow(),
+                created_at=utc_now(),
             )
         )
     await session.flush()
@@ -237,7 +236,7 @@ async def approve_sale(
     if not sale:
         raise HTTPException(status_code=404, detail="sale_not_found")
     sale.status = "open"
-    sale.sale_date = datetime.utcnow()
+    sale.sale_date = utc_now()
     await session.flush()
     return {"sale_id": sale.sale_id, "status": sale.status}
 

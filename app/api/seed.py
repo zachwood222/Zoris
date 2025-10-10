@@ -12,6 +12,7 @@ from sqlalchemy import delete
 from .db import engine
 from .models import domain
 from .services.shortcode import generate_short_code
+from .utils.datetime import utc_now
 
 LABEL_TEMPLATE_PATH = Path("app/profiles/dymo/floor_tag.label")
 
@@ -100,7 +101,7 @@ async def seed() -> None:
         session.add_all(customers)
         await session.flush()
 
-        now = datetime.utcnow()
+        now = utc_now()
 
         open_sale = domain.Sale(
             customer_id=customers[0].customer_id,
@@ -294,7 +295,7 @@ async def seed() -> None:
             )
             session.add(domain.Barcode(barcode=f"BC{item.item_id:05d}", item_id=item.item_id))
 
-        now = datetime.utcnow()
+        now = utc_now()
 
         customers = [
             domain.Customer(name="Jordan Alvarez", phone="555-0100", email="jordan@example.com"),

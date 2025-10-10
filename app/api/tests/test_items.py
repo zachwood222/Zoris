@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -15,6 +15,7 @@ from ..models.domain import (
     PurchaseOrder,
     Vendor,
 )
+from ..utils.datetime import utc_now
 
 
 @pytest.mark.asyncio
@@ -39,7 +40,7 @@ async def test_get_item_detail_returns_inventory_and_incoming(client) -> None:
         po = PurchaseOrder(
             vendor=vendor,
             status="open",
-            expected_date=datetime.utcnow() + timedelta(days=3),
+            expected_date=utc_now() + timedelta(days=3),
             created_by="tester",
         )
         po_line = POLine(
