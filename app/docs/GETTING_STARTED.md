@@ -1,6 +1,8 @@
 # Getting Started
 
-1. Copy `.env.example` to `.env` and adjust secrets.
+1. Copy `.env.example` to `.env` and adjust secrets. When running the API outside of
+   Docker, install dependencies with `pip install -r requirements-dev.txt` to pick
+   up the pinned runtime and test packages.
 2. Run `docker compose up --build` from the repository root. This starts:
    - FastAPI at http://localhost:8000
    - Next.js at http://localhost:3000
