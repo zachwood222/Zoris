@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
 from decimal import Decimal
 from typing import Sequence
 
@@ -28,6 +27,7 @@ from ..schemas.incoming_trucks import (
     IncomingTruckUpdateRead,
 )
 from ..security import User, require_roles
+from ..utils.datetime import utc_now
 
 router = APIRouter()
 
@@ -55,7 +55,7 @@ def _serialize_line(line: IncomingTruckLine) -> IncomingTruckLineRead:
 
 
 def _serialize_update(update: IncomingTruckUpdate) -> IncomingTruckUpdateRead:
-    created_at = update.created_at or datetime.utcnow()
+    created_at = update.created_at or utc_now()
     return IncomingTruckUpdateRead(
         update_id=update.update_id,
         truck_id=update.truck_id,
@@ -93,7 +93,7 @@ def _build_truck_response(
     lines: Sequence[IncomingTruckLine],
     updates: Sequence[IncomingTruckUpdate],
 ) -> IncomingTruckResponse:
-    sorted_updates = sorted(updates, key=lambda update: update.created_at or datetime.utcnow())
+    sorted_updates = sorted(updates, key=lambda update: update.created_at or utc_now())
     history = [_serialize_update(update) for update in sorted_updates]
     latest_status = None
     note_count = 0

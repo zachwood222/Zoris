@@ -16,6 +16,7 @@ from ..schemas.dashboard import (
     DashboardSummaryResponse,
     DashboardSystemStatus,
 )
+from ..utils.datetime import utc_now
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -39,7 +40,7 @@ def _humanize_delta(now: datetime, past: datetime) -> str:
 async def get_dashboard_summary(
     session: AsyncSession = Depends(get_session),
 ) -> DashboardSummaryResponse:
-    now = datetime.utcnow()
+    now = utc_now()
     last_24h = now - timedelta(hours=24)
     worker_window = now - timedelta(hours=4)
 

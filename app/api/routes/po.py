@@ -1,7 +1,6 @@
 """Purchase order endpoints."""
 from __future__ import annotations
 
-from datetime import datetime
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +21,7 @@ from ..models.domain import (
     Vendor,
 )
 from ..security import User, require_roles
+from ..utils.datetime import utc_now
 from ..schemas.po import POLineSearchResult
 
 router = APIRouter()
@@ -318,7 +318,7 @@ async def receive_po(
                 ref_type="receiving",
                 ref_id=receiving.receipt_id,
                 unit_cost=unit_cost,
-                created_at=datetime.utcnow(),
+                created_at=utc_now(),
             )
         )
     bill = Bill(

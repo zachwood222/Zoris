@@ -1,10 +1,11 @@
 """Config endpoints."""
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter
 
 from ..config import get_settings
 from ..schemas.common import ConfigResponse, StationPinResponse
+from ..utils.datetime import utc_now
 
 router = APIRouter(tags=["config"])
 
@@ -23,6 +24,6 @@ async def config() -> ConfigResponse:
 @router.get("/station-pin", response_model=StationPinResponse)
 async def station_pin() -> StationPinResponse:
     settings = get_settings()
-    expires_at = datetime.utcnow() + timedelta(minutes=settings.station_pin_rotate_minutes)
+    expires_at = utc_now() + timedelta(minutes=settings.station_pin_rotate_minutes)
     pin = "1234"
     return StationPinResponse(pin=pin, expires_at=expires_at)
