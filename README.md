@@ -9,6 +9,20 @@ Production-grade starter kit replacing STORIS workflows with a FastAPI + Next.js
 - Zapier webhooks and QuickBooks stub integration
 - Docker Compose orchestration with Postgres, Redis, MinIO, and Nginx proxy
 
+## Installing dependencies
+
+The API stack now ships with pinned dependencies for reproducible installs.
+
+```bash
+pip install -r requirements.txt
+```
+
+When working on tests or other development tooling install the extended set:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 ## Running locally
 See [app/docs/GETTING_STARTED.md](app/docs/GETTING_STARTED.md) for detailed steps.
 
