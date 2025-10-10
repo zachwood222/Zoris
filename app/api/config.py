@@ -1,6 +1,7 @@
 """Application configuration via Pydantic settings."""
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -91,6 +92,76 @@ class Settings(BaseSettings):
             "description": "Comma-separated list of allowed CORS origins for the API.",
         },
     )
+    auth_provider: Literal["mock", "shared_secret", "jwks"] = Field(
+        default="mock",
+        alias="AUTH_PROVIDER",
+        description="Authentication backend to use for validating API requests.",
+    )
+    auth_shared_secret: str | None = Field(
+        default=None,
+        alias="AUTH_SHARED_SECRET",
+        description="Shared secret used when AUTH_PROVIDER=shared_secret.",
+    )
+    auth_algorithms: list[str] | str = Field(
+        default_factory=lambda: ["RS256"],
+        alias="AUTH_ALGORITHMS",
+        description="Allowed JWT signing algorithms.",
+    )
+    auth_audience: str | None = Field(
+        default=None,
+        alias="AUTH_AUDIENCE",
+        description="Expected JWT audience claim when verifying access tokens.",
+    )
+    auth_issuer: str | None = Field(
+        default=None,
+        alias="AUTH_ISSUER",
+        description="Expected JWT issuer claim when verifying access tokens.",
+    )
+    auth_roles_claim: str = Field(
+        default="roles",
+        alias="AUTH_ROLES_CLAIM",
+        description="Claim path (dot notation) containing provider role identifiers.",
+    )
+    auth_user_id_claim: str = Field(
+        default="sub",
+        alias="AUTH_USER_ID_CLAIM",
+        description="Claim path (dot notation) used for the internal user identifier.",
+    )
+    auth_role_mapping: dict[str, list[str] | str] = Field(
+        default_factory=dict,
+        alias="AUTH_ROLE_MAPPING",
+        description="JSON object mapping provider roles to internal role names.",
+    )
+    auth_default_roles: list[str] | str = Field(
+        default_factory=list,
+        alias="AUTH_DEFAULT_ROLES",
+        description="Roles granted to every authenticated user.",
+    )
+    auth_mock_roles: list[str] | str = Field(
+        default_factory=lambda: ["Admin", "Purchasing", "Floor", "AP", "Driver"],
+        alias="AUTH_MOCK_ROLES",
+        description="Roles assigned by the mock authentication provider.",
+    )
+    auth_jwks_url: str | None = Field(
+        default=None,
+        alias="AUTH_JWKS_URL",
+        description="JWKS endpoint for fetching signing keys when AUTH_PROVIDER=jwks.",
+    )
+    auth_jwks_cache_seconds: int = Field(
+        default=300,
+        alias="AUTH_JWKS_CACHE_SECONDS",
+        description="How long JWKS responses are cached in seconds.",
+    )
+    auth_jwks_static: str | None = Field(
+        default=None,
+        alias="AUTH_JWKS_STATIC",
+        description="Optional JSON string containing a JWKS document used for offline testing.",
+    )
+    auth_require_exp: bool = Field(
+        default=True,
+        alias="AUTH_REQUIRE_EXP",
+        description="Whether to require the exp claim on incoming JWTs.",
+    )
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -103,6 +174,45 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             origins = [origin.strip() for origin in value.split(",")]
             return [origin for origin in origins if origin]
+
+        return value
+
+    @field_validator(
+        "auth_algorithms",
+        "auth_mock_roles",
+        "auth_default_roles",
+        mode="before",
+    )
+    @classmethod
+    def _split_str_list(cls, value: Any) -> Any:
+        """Allow comma separated strings for list based settings."""
+
+        if value is None:
+            return []
+
+        if value == "":
+            return []
+
+        if isinstance(value, str):
+            items = [item.strip() for item in value.split(",")]
+            return [item for item in items if item]
+
+        return value
+
+    @field_validator("auth_role_mapping", mode="before")
+    @classmethod
+    def _parse_role_mapping(cls, value: Any) -> Any:
+        """Parse JSON string role mapping into a dictionary."""
+
+        if value is None or value == "":
+            return {}
+
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+                raise ValueError("AUTH_ROLE_MAPPING must be valid JSON") from exc
+            return parsed
 
         return value
 
@@ -133,6 +243,26 @@ class Settings(BaseSettings):
             )
 
         self.redis_url = "redis://localhost:6379/0"
+        return self
+
+    @model_validator(mode="after")
+    def _validate_auth(self) -> "Settings":
+        """Ensure authentication configuration is coherent."""
+
+        if self.environment != "local" and self.auth_provider == "mock":
+            raise ValueError("Mock authentication cannot be used outside local environments.")
+
+        if self.auth_provider == "shared_secret" and not self.auth_shared_secret:
+            raise ValueError("AUTH_SHARED_SECRET is required when AUTH_PROVIDER=shared_secret.")
+
+        if self.auth_provider == "jwks" and not (self.auth_jwks_url or self.auth_jwks_static):
+            raise ValueError(
+                "Either AUTH_JWKS_URL or AUTH_JWKS_STATIC must be set when AUTH_PROVIDER=jwks."
+            )
+
+        if not self.auth_algorithms:
+            raise ValueError("At least one JWT algorithm must be configured via AUTH_ALGORITHMS.")
+
         return self
 
 @lru_cache(1)
