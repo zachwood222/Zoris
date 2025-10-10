@@ -41,31 +41,6 @@ interface SaleLineDraft {
   qty: number;
 }
 
-interface ItemDetailLocation {
-  location_id: number;
-  location_name: string;
-  qty_on_hand: number;
-  qty_reserved: number;
-}
-
-interface ItemDetailIncoming {
-  po_id: number;
-  vendor_name: string | null;
-  status: string;
-  expected_date: string | null;
-  qty_remaining: number;
-  qty_ordered: number;
-}
-
-interface ItemDetail {
-  item: {
-    price: number;
-  };
-  total_on_hand: number;
-  locations: ItemDetailLocation[];
-  incoming: ItemDetailIncoming[];
-}
-
 type StatusMessage = {
   kind: 'success' | 'error';
   message: string;
