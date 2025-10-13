@@ -1,0 +1,9 @@
+# Python virtual environments
+.venv/
+
+# Node dependencies installed locally for the Next.js frontend
+app/web/node_modules/
+
+# Bytecode and cache directories
+__pycache__/
+*.pyc
