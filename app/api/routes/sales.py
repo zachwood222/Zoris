@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
@@ -129,9 +130,16 @@ async def finalize_sale(sale_id: int, session: AsyncSession = Depends(get_sessio
     sale = await session.get(Sale, sale_id)
     if not sale:
         raise HTTPException(status_code=404, detail="sale_not_found")
+    sale_lines = (
+        await session.execute(
+            select(SaleLine)
+            .options(selectinload(SaleLine.item))
+            .where(SaleLine.sale_id == sale_id)
+        )
+    ).scalars().all()
     sale.status = "open"
     sale.sale_date = utc_now()
-    for line in sale.lines:
+    for line in sale_lines:
         session.add(
             InventoryTxn(
                 item_id=line.item_id,
@@ -159,7 +167,7 @@ async def finalize_sale(sale_id: int, session: AsyncSession = Depends(get_sessio
                     "qty": float(line.qty),
                     "price": float(line.unit_price),
                 }
-                for line in sale.lines
+                for line in sale_lines
             ],
         }
     )
