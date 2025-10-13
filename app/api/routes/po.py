@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
@@ -13,6 +15,7 @@ from ..models.domain import (
     Barcode,
     Bill,
     Item,
+    Inventory,
     InventoryTxn,
     POLine,
     PurchaseOrder,
@@ -44,6 +47,7 @@ class POReceiveLinePayload(BaseModel):
     po_line_id: int
     qty_received: float
     unit_cost: float | None = None
+    location_id: int | None = None
 
 
 class POLineLookupResponse(BaseModel):
@@ -309,10 +313,11 @@ async def receive_po(
                 unit_cost=unit_cost,
             )
         )
+        location_id = line_payload.location_id or 1
         session.add(
             InventoryTxn(
                 item_id=line.item_id,
-                location_id=1,
+                location_id=location_id,
                 qty_delta=qty,
                 reason="receive",
                 ref_type="receiving",
@@ -321,6 +326,25 @@ async def receive_po(
                 created_at=utc_now(),
             )
         )
+
+        inventory = await session.scalar(
+            select(Inventory).where(
+                Inventory.item_id == line.item_id,
+                Inventory.location_id == location_id,
+            )
+        )
+        if not inventory:
+            inventory = Inventory(
+                item_id=line.item_id,
+                location_id=location_id,
+                qty_on_hand=Decimal("0"),
+                qty_reserved=Decimal("0"),
+                avg_cost=Decimal("0"),
+            )
+            session.add(inventory)
+
+        current_qty = Decimal(inventory.qty_on_hand or 0)
+        inventory.qty_on_hand = current_qty + Decimal(str(qty))
     bill = Bill(
         vendor_id=po.vendor_id,
         po_id=po_id,
