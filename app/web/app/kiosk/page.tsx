@@ -266,6 +266,32 @@ export default function KioskPage() {
     }
   };
 
+  const formatErrorMessage = (error: unknown): string => {
+    const defaultMessage = 'We were unable to process that ticket image. Try again shortly.';
+
+    if (axios.isAxiosError(error)) {
+      const detail = error.response?.data?.detail;
+      if (typeof detail === 'string' && detail.trim().length > 0) {
+        const normalized = detail
+          .replace(/_/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (normalized) {
+          return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+        }
+      }
+
+      if (Array.isArray(detail) && detail.length > 0) {
+        const firstDetail = detail[0];
+        if (typeof firstDetail?.msg === 'string' && firstDetail.msg.trim().length > 0) {
+          return firstDetail.msg.trim();
+        }
+      }
+    }
+
+    return defaultMessage;
+  };
+
   const uploadPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.target;
     if (!input.files?.length) return;
@@ -289,7 +315,7 @@ export default function KioskPage() {
       console.error(error);
       setStatus({
         kind: 'error',
-        message: 'We were unable to process that ticket image. Try again shortly.'
+        message: formatErrorMessage(error)
       });
     } finally {
       setIsUploading(false);
