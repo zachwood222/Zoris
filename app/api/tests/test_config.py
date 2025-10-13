@@ -51,3 +51,14 @@ def test_get_settings_requires_redis_in_production(monkeypatch: pytest.MonkeyPat
 
     with pytest.raises(ValueError):
         config.get_settings()
+
+
+def test_log_level_normalization(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOG_LEVEL", "debug")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.log_level == "DEBUG"
+
+    monkeypatch.delenv("LOG_LEVEL", raising=False)

@@ -85,6 +85,31 @@ class Settings(BaseSettings):
     qbo_enabled: bool = Field(default=False, alias="QBO_ENABLED")
     station_pin_rotate_minutes: int = Field(default=1440, alias="STATION_PIN_ROTATE_MINUTES")
     feature_auto_approve_ocr: bool = Field(default=True, alias="AUTO_APPROVE_OCR")
+    log_level: str = Field(
+        default="INFO",
+        alias="LOG_LEVEL",
+        description="Base logging level for the application.",
+    )
+    log_requests: bool = Field(
+        default=True,
+        alias="LOG_REQUESTS",
+        description="Whether to emit structured request/response summaries.",
+    )
+    log_request_body: bool = Field(
+        default=False,
+        alias="LOG_REQUEST_BODY",
+        description="Whether to include a truncated body preview in request logs.",
+    )
+    log_startup_summary: bool = Field(
+        default=True,
+        alias="LOG_STARTUP_SUMMARY",
+        description="Log a sanitized summary of key settings during application startup.",
+    )
+    sqlalchemy_echo: bool = Field(
+        default=False,
+        alias="SQLALCHEMY_ECHO",
+        description="Enable SQLAlchemy engine echo logging for troubleshooting queries.",
+    )
     cors_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000"],
         alias="CORS_ORIGINS",
@@ -196,6 +221,16 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             items = [item.strip() for item in value.split(",")]
             return [item for item in items if item]
+
+        return value
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, value: Any) -> Any:
+        """Normalize configured log level names."""
+
+        if isinstance(value, str):
+            return value.upper()
 
         return value
 

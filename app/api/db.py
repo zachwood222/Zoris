@@ -1,14 +1,17 @@
 """Database session management."""
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from .config import get_settings
+from .utils.logging import sanitize_connection_url
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 def _ensure_async_driver(database_url: str) -> str:
@@ -26,7 +29,12 @@ def _ensure_async_driver(database_url: str) -> str:
     return str(url)
 
 
-engine = create_async_engine(_ensure_async_driver(settings.database_url), echo=False, future=True)
+engine = create_async_engine(
+    _ensure_async_driver(settings.database_url), echo=settings.sqlalchemy_echo, future=True
+)
+logger.debug(
+    "Configured async engine", extra={"database_url": sanitize_connection_url(settings.database_url)}
+)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
