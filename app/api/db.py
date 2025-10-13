@@ -18,8 +18,8 @@ def _ensure_async_driver(database_url: str) -> str:
     drivername = url.drivername
 
     dialect, _, driver = drivername.partition("+")
-    if dialect in {"postgresql", "postgres"} and driver != "asyncpg":
-        url = url.set(drivername="postgresql+asyncpg")
+    if dialect in {"postgresql", "postgres"} and driver != "psycopg_async":
+        url = url.set(drivername="postgresql+psycopg_async")
     elif dialect == "sqlite" and driver != "aiosqlite":
         url = url.set(drivername="sqlite+aiosqlite")
 
