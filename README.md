@@ -23,6 +23,12 @@ When working on tests or other development tooling install the extended set:
 pip install -r requirements-dev.txt
 ```
 
+> **Render deployments:** The hosted environment currently defaults to Python
+> 3.13, but several upstream libraries in this project do not yet publish wheels
+> for that runtime.  Pin the runtime to Python 3.12 by keeping the
+> repository's `runtime.txt` file up to date so that `pip install -r
+> requirements.txt` succeeds during builds.
+
 ## Running locally
 See [app/docs/GETTING_STARTED.md](app/docs/GETTING_STARTED.md) for detailed steps.
 
