@@ -82,6 +82,7 @@ barcode_type_enum = Enum("item", "variant", "lot", "serial", name="barcode_type_
 attachment_ref_enum = Enum("sale", "po", "bill", "receiving", name="attachment_ref_enum")
 attachment_kind_enum = Enum(
     "photo_ticket",
+    "document_ticket",
     "signature",
     "delivery_photo",
     "vendor_invoice",
