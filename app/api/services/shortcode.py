@@ -1,7 +1,7 @@
 """Short code generation utilities."""
 from __future__ import annotations
 
-import random
+from secrets import randbelow
 
 
 def generate_short_code(existing: set[str], length: int = 4) -> str:
@@ -9,9 +9,22 @@ def generate_short_code(existing: set[str], length: int = 4) -> str:
 
     if length < 3:
         raise ValueError("length must be >= 3")
-    max_attempts = 10_000
+
+    total_codes = 10**length
+    if len(existing) >= total_codes:
+        raise RuntimeError("no short codes available for requested length")
+
+    max_attempts = min(10_000, total_codes)
     for _ in range(max_attempts):
-        code = f"{random.randint(0, 10**length - 1):0{length}d}"
+        code = f"{randbelow(total_codes):0{length}d}"
         if code not in existing:
             return code
+
+    # Fall back to a deterministic scan to guarantee a result when the code
+    # space is sparse but random sampling repeatedly hits existing values.
+    for value in range(total_codes):
+        code = f"{value:0{length}d}"
+        if code not in existing:
+            return code
+
     raise RuntimeError("unable to allocate unique short code")
