@@ -214,7 +214,10 @@ function aggregateUpdatesFromHistory(history: TruckUpdate[]): IncomingTruckUpdat
 function applyTruckUpdate(
   trucks: IncomingTruck[] | undefined,
   truckId: number,
-  update: TruckUpdate
+  update: TruckUpdate,
+  options?: {
+    replaceUpdateId?: number | null;
+  }
 ): IncomingTruck[] | undefined {
   if (!trucks) {
     return trucks;
@@ -225,7 +228,11 @@ function applyTruckUpdate(
       return truck;
     }
     const existingHistory = truck.updates?.history ?? [];
-    const mergedHistory = [...existingHistory, update];
+    const filteredHistory =
+      options?.replaceUpdateId != null
+        ? existingHistory.filter((entry) => entry.update_id !== options.replaceUpdateId)
+        : existingHistory;
+    const mergedHistory = [...filteredHistory, update];
     return {
       ...truck,
       updates: aggregateUpdatesFromHistory(mergedHistory)
@@ -318,7 +325,9 @@ export async function submitTruckUpdate(
               quantity: payload.quantity ?? null
             });
       resolvedUpdate = normalized;
-      return applyTruckUpdate(current ?? [], truckId, normalized);
+      return applyTruckUpdate(current ?? [], truckId, normalized, {
+        replaceUpdateId: optimisticUpdate.update_id
+      });
     },
     {
       optimisticData: applyTruckUpdate(context.current ?? [], truckId, optimisticUpdate),
