@@ -49,3 +49,9 @@ async def _log_startup_summary() -> None:
 @app.get("/")
 async def root() -> dict:
     return {"app": settings.app_name}
+
+
+@app.head("/")
+async def root_head() -> None:
+    """FastAPI does not always auto-generate a HEAD route; define explicitly."""
+    return None
