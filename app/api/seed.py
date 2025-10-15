@@ -382,26 +382,24 @@ async def seed() -> None:
         session.add(po_open)
         await session.flush()
 
-        session.add_all(
-            [
-                domain.POLine(
-                    po_id=po_open.po_id,
-                    item_id=items[10].item_id,
-                    description=items[10].description,
-                    qty_ordered=5,
-                    qty_received=0,
-                    unit_cost=float(items[10].unit_cost),
-                ),
-                domain.POLine(
-                    po_id=po_open.po_id,
-                    item_id=items[11].item_id,
-                    description=items[11].description,
-                    qty_ordered=4,
-                    qty_received=0,
-                    unit_cost=float(items[11].unit_cost),
-                ),
-            ]
+        po_open_line_a = domain.POLine(
+            po_id=po_open.po_id,
+            item_id=items[10].item_id,
+            description=items[10].description,
+            qty_ordered=5,
+            qty_received=0,
+            unit_cost=float(items[10].unit_cost),
         )
+        po_open_line_b = domain.POLine(
+            po_id=po_open.po_id,
+            item_id=items[11].item_id,
+            description=items[11].description,
+            qty_ordered=4,
+            qty_received=0,
+            unit_cost=float(items[11].unit_cost),
+        )
+        session.add_all([po_open_line_a, po_open_line_b])
+        await session.flush()
 
         po_partial = domain.PurchaseOrder(
             vendor_id=vendors[1].vendor_id,
@@ -433,6 +431,98 @@ async def seed() -> None:
         )
         session.add_all([po_partial_line_a, po_partial_line_b])
         await session.flush()
+
+        active_truck = domain.IncomingTruck(
+            po_id=po_partial.po_id,
+            reference="TRK-5001",
+            carrier="Evergreen Logistics",
+            status="unloading",
+            scheduled_arrival=now + timedelta(hours=1),
+            arrived_at=now - timedelta(minutes=25),
+        )
+        active_truck.created_at = now - timedelta(hours=2)
+        session.add(active_truck)
+        await session.flush()
+
+        session.add_all(
+            [
+                domain.IncomingTruckLine(
+                    truck_id=active_truck.truck_id,
+                    po_line_id=po_partial_line_a.po_line_id,
+                    item_id=po_partial_line_a.item_id,
+                    description=po_partial_line_a.description,
+                    qty_expected=float(po_partial_line_a.qty_ordered - po_partial_line_a.qty_received),
+                ),
+                domain.IncomingTruckLine(
+                    truck_id=active_truck.truck_id,
+                    po_line_id=po_partial_line_b.po_line_id,
+                    item_id=po_partial_line_b.item_id,
+                    description=po_partial_line_b.description,
+                    qty_expected=float(po_partial_line_b.qty_ordered - po_partial_line_b.qty_received),
+                ),
+            ]
+        )
+
+        status_update = domain.IncomingTruckUpdate(
+            truck_id=active_truck.truck_id,
+            update_type="status",
+            status="arrived",
+            message="Checked in at receiving dock.",
+            created_by="demo.driver",
+        )
+        status_update.created_at = now - timedelta(hours=1, minutes=30)
+
+        note_update = domain.IncomingTruckUpdate(
+            truck_id=active_truck.truck_id,
+            update_type="note",
+            message="Carrier reports minor traffic delay but now on-site.",
+            created_by="demo.driver",
+        )
+        note_update.created_at = now - timedelta(hours=1, minutes=10)
+
+        progress_update = domain.IncomingTruckUpdate(
+            truck_id=active_truck.truck_id,
+            update_type="line_progress",
+            po_line_id=po_partial_line_a.po_line_id,
+            item_id=po_partial_line_a.item_id,
+            quantity=2,
+            message="Unloaded accent chairs.",
+            created_by="demo.receiver",
+        )
+        progress_update.created_at = now - timedelta(minutes=35)
+
+        session.add_all([status_update, note_update, progress_update])
+
+        scheduled_truck = domain.IncomingTruck(
+            po_id=po_open.po_id,
+            reference="TRK-5002",
+            carrier="Northern Freight",
+            status="scheduled",
+            scheduled_arrival=now + timedelta(hours=6),
+        )
+        scheduled_truck.created_at = now - timedelta(minutes=15)
+        session.add(scheduled_truck)
+        await session.flush()
+
+        session.add(
+            domain.IncomingTruckLine(
+                truck_id=scheduled_truck.truck_id,
+                po_line_id=po_open_line_a.po_line_id,
+                item_id=po_open_line_a.item_id,
+                description=po_open_line_a.description,
+                qty_expected=float(po_open_line_a.qty_ordered),
+            )
+        )
+
+        scheduled_status = domain.IncomingTruckUpdate(
+            truck_id=scheduled_truck.truck_id,
+            update_type="status",
+            status="scheduled",
+            message="Dispatcher confirmed departure.",
+            created_by="demo.dispatch",
+        )
+        scheduled_status.created_at = now - timedelta(minutes=12)
+        session.add(scheduled_status)
 
         recent_receiving = domain.Receiving(
             po_id=po_partial.po_id,
