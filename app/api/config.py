@@ -111,7 +111,11 @@ class Settings(BaseSettings):
         description="Enable SQLAlchemy engine echo logging for troubleshooting queries.",
     )
     cors_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost:3000"],
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://0.0.0.0:3000",
+        ],
         alias="CORS_ORIGINS",
         json_schema_extra={
             "description": "Comma-separated list of allowed CORS origins for the API.",

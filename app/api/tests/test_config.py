@@ -62,3 +62,14 @@ def test_log_level_normalization(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.log_level == "DEBUG"
 
     monkeypatch.delenv("LOG_LEVEL", raising=False)
+
+
+def test_default_cors_origins_cover_local_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert "http://localhost:3000" in settings.cors_origins
+    assert "http://127.0.0.1:3000" in settings.cors_origins
+    assert "http://0.0.0.0:3000" in settings.cors_origins
