@@ -1,12 +1,7 @@
 import axios from 'axios';
 import useSWR, { KeyedMutator } from 'swr';
 
-import { apiBase } from './api';
-
-export const authHeaders = {
-  'X-User-Id': 'demo',
-  'X-User-Roles': 'Purchasing'
-};
+import { apiBase, buildAuthHeaders } from './api';
 
 export type TruckStatus =
   | 'scheduled'
@@ -107,7 +102,8 @@ export interface UseIncomingTrucksResult {
 }
 
 const fetcher = async <T,>(url: string): Promise<T> => {
-  const { data } = await axios.get<T>(url, { headers: authHeaders });
+  const headers = await buildAuthHeaders();
+  const { data } = await axios.get<T>(url, { headers });
   return data;
 };
 
@@ -145,7 +141,8 @@ export function usePoLineSearch(query: string): UsePoLineSearchResult {
   } = useSWR<PoLineSearchResult[]>(
     shouldFetch ? `${apiBase}/po/lines/search?q=${encodeURIComponent(trimmed)}` : null,
     async (url) => {
-      const { data } = await axios.get(url, { headers: authHeaders });
+      const headers = await buildAuthHeaders();
+      const { data } = await axios.get(url, { headers });
       if (Array.isArray(data)) {
         return data as PoLineSearchResult[];
       }
@@ -294,10 +291,11 @@ export async function submitTruckUpdate(
 
   await context.mutate(
     async (current) => {
+      const headers = await buildAuthHeaders();
       const { data } = await axios.post<TruckUpdate | TruckUpdateApiResponse>(
         `${trucksUrl}/${truckId}/updates`,
         payload,
-        { headers: authHeaders }
+        { headers }
       );
       const normalized =
         (data as TruckUpdateApiResponse)?.update

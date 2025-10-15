@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import axios from 'axios';
 
+import { apiBase, buildAuthHeaders } from '../../lib/api';
+
 interface LookupLine {
   po_id: number;
   po_line_id: number;
@@ -38,17 +40,12 @@ type ActivityEntry =
       timestamp: string;
     };
 
-const authHeaders = {
-  'X-User-Id': 'demo',
-  'X-User-Roles': 'Purchasing'
-};
-
 export default function ReceivingPage() {
   const [scan, setScan] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const api = apiBase;
 
   const appendActivity = (entry: ActivityEntry) => {
     setActivity((entries) => [entry, ...entries].slice(0, 25));
@@ -77,8 +74,9 @@ export default function ReceivingPage() {
     setIsSubmitting(true);
 
     try {
+      const headers = await buildAuthHeaders();
       const { data } = await axios.get<LookupLine[]>(`${api}/po/lookup/${encodeURIComponent(scan)}`, {
-        headers: authHeaders
+        headers
       });
 
       const grouped = data.reduce<Map<number, LookupLine[]>>((map, line) => {
@@ -133,7 +131,7 @@ export default function ReceivingPage() {
         const response = await axios.post<{ receipt_id: number; bill_id: number }>(
           `${api}/po/${poId}/receive`,
           payload,
-          { headers: authHeaders }
+          { headers }
         );
 
         appendActivity({

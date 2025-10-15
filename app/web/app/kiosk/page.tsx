@@ -2,7 +2,8 @@
 
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { apiBase } from '../../lib/api';
+
+import { apiBase, buildAuthHeaders } from '../../lib/api';
 
 interface ItemSummary {
   item_id: number;
@@ -46,8 +47,6 @@ type StatusMessage = {
   message: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export default function KioskPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ItemSummary[]>([]);
@@ -76,9 +75,11 @@ export default function KioskPage() {
 
     const handler = setTimeout(async () => {
       try {
+        const headers = await buildAuthHeaders();
         const response = await axios.get<ItemSummary[]>(`${apiBase}/items/search`, {
           params: { q: query },
-          signal: controller.signal
+          signal: controller.signal,
+          headers
         });
         setResults(response.data);
       } catch (error) {
@@ -121,7 +122,11 @@ export default function KioskPage() {
       setSelectedDetail(null);
 
       try {
-        const response = await axios.get<ItemDetail>(`${apiBase}/items/${selectedItem.item_id}`);
+        const headers = await buildAuthHeaders();
+        const response = await axios.get<ItemDetail>(`${apiBase}/items/${selectedItem.item_id}`, {
+          signal: controller.signal,
+          headers
+        });
         if (!cancelled) {
           setSelectedDetail(response.data);
         }
@@ -232,22 +237,29 @@ export default function KioskPage() {
     setStatus(null);
 
     try {
+      const headers = await buildAuthHeaders();
       const { data: create } = await axios.post<{ sale_id: number }>(`${apiBase}/sales`, {
         created_by: 'kiosk',
         source: 'kiosk'
-      });
+      }, { headers });
       const saleId = create.sale_id;
 
       for (const line of lines) {
-        await axios.post(`${apiBase}/sales/${saleId}/add-line`, {
-          sku: line.item.sku,
-          qty: line.qty,
-          location_id: 1
-        });
+        await axios.post(
+          `${apiBase}/sales/${saleId}/add-line`,
+          {
+            sku: line.item.sku,
+            qty: line.qty,
+            location_id: 1
+          },
+          { headers }
+        );
       }
 
       const { data: finalizeData } = await axios.post<{ sale_id: number }>(
-        `${apiBase}/sales/${saleId}/finalize`
+        `${apiBase}/sales/${saleId}/finalize`,
+        undefined,
+        { headers }
       );
 
       setStatus({
@@ -304,8 +316,9 @@ export default function KioskPage() {
     setStatus(null);
 
     try {
+      const headers = await buildAuthHeaders({ 'Content-Type': 'multipart/form-data' });
       const { data } = await axios.post<{ sale_id: number }>(`${apiBase}/ocr/sale-ticket`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers
       });
       setStatus({
         kind: 'success',

@@ -4,7 +4,13 @@ import { FormEvent, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 
-const fetcher = (url: string) => axios.get(url).then((res) => res.data);
+import { apiBase, buildAuthHeaders } from '../../../lib/api';
+
+const fetcher = async (url: string) => {
+  const headers = await buildAuthHeaders();
+  const response = await axios.get(url, { headers });
+  return response.data;
+};
 
 interface LabelTemplate {
   template_id: number;
@@ -13,7 +19,7 @@ interface LabelTemplate {
 }
 
 export default function BatchLabelsPage() {
-  const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const api = apiBase;
   const { data } = useSWR<LabelTemplate[]>(`${api}/labels/templates`, fetcher);
   const templates = data ?? [];
 

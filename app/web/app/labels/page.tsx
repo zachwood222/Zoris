@@ -4,6 +4,8 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from '
 import axios from 'axios';
 import useSWR from 'swr';
 
+import { apiBase, buildAuthHeaders } from '../../lib/api';
+
 type LabelTemplate = {
   template_id: string;
   name: string;
@@ -28,7 +30,11 @@ type PurchaseOrder = {
   lastPrinted?: string;
 };
 
-const fetcher = (url: string) => axios.get(url).then((res) => res.data);
+const fetcher = async (url: string) => {
+  const headers = await buildAuthHeaders();
+  const response = await axios.get(url, { headers });
+  return response.data;
+};
 
 const fallbackTemplates: LabelTemplate[] = [
   { template_id: 'bin-label', name: 'Bin Location Label', target: 'DYMO LabelWriter 550 Turbo' },
@@ -48,7 +54,7 @@ const defaultPurchaseOrders: PurchaseOrder[] = [
 ];
 
 export default function LabelsPage() {
-  const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const api = apiBase;
   const { data } = useSWR<LabelTemplate[]>(`${api}/labels/templates`, fetcher, {
     revalidateOnFocus: false
   });

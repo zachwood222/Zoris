@@ -2,7 +2,7 @@
 
 import useSWR from 'swr';
 
-import { apiBase } from '../lib/api';
+import { apiBase, buildAuthHeaders } from '../lib/api';
 
 type DashboardMetric = {
   label: string;
@@ -31,7 +31,8 @@ type DashboardSummaryResponse = {
 };
 
 const fetcher = async (url: string): Promise<DashboardSummaryResponse> => {
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const headers = await buildAuthHeaders({ Accept: 'application/json' });
+  const response = await fetch(url, { headers });
   if (!response.ok) {
     throw new Error('Failed to load dashboard summary');
   }
