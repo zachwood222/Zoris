@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 
 class HealthResponse(BaseModel):
     ok: bool = True
+    fastapi: bool = True
+    database: bool = True
+    redis: bool | None = None
+    detail: dict[str, Any] = Field(default_factory=dict)
 
 
 class ConfigResponse(BaseModel):

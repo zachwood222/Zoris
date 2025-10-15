@@ -7,3 +7,6 @@ app/web/node_modules/
 # Bytecode and cache directories
 __pycache__/
 *.pyc
+
+# Local SQLite database created by sample data helper
+zoris.db

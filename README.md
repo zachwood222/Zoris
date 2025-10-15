@@ -32,6 +32,19 @@ pip install -r requirements-dev.txt
 ## Running locally
 See [app/docs/GETTING_STARTED.md](app/docs/GETTING_STARTED.md) for detailed steps.
 
+## Demo data and connectivity checks
+
+Load a lightweight dataset for manual testing by running:
+
+```bash
+python -m app.api.sample_data
+```
+
+The `/health` endpoint now verifies database connectivity, attempts a Redis
+`PING` when a URL is configured, and ensures the demo records above exist. A
+successful response includes component flags plus a `sample_data` summary that
+lists how many demo vendors, items, customers, and sales are present.
+
 ## Configuring Celery connectivity
 
 Celery relies on Redis for both its broker and result backend. When deploying to
