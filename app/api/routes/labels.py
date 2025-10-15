@@ -1,7 +1,7 @@
 """Label endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,5 +24,8 @@ async def list_templates(session: AsyncSession = Depends(get_session)) -> list[d
 
 @router.post("/render", response_model=LabelRenderResponse)
 async def render(payload: LabelRenderRequest, session: AsyncSession = Depends(get_session)) -> LabelRenderResponse:
-    xml = await render_label(session, payload.template_id, payload.context)
+    try:
+        xml = await render_label(session, payload.template_id, payload.context)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="template_not_found") from exc
     return LabelRenderResponse(template_id=payload.template_id, xml=xml)
