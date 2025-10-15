@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 
+import { apiBase, buildAuthHeaders } from '../../lib/api';
+
 interface DraftSale {
   sale_id: number;
   ocr_confidence: number;
@@ -29,10 +31,14 @@ interface DraftSaleDetail {
   attachments: SaleAttachment[];
 }
 
-const fetcher = (url: string) => axios.get(url).then((res) => res.data);
+const fetcher = async (url: string) => {
+  const headers = await buildAuthHeaders();
+  const response = await axios.get(url, { headers });
+  return response.data;
+};
 
 export default function ReviewPage() {
-  const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const api = apiBase;
   const { data, mutate } = useSWR<{ drafts: DraftSale[] }>(`${api}/sales`, fetcher, {
     suspense: false
   });
@@ -64,14 +70,16 @@ export default function ReviewPage() {
 
   const handleApprove = async () => {
     if (!selectedSaleId) return;
-    await axios.post(`${api}/sales/${selectedSaleId}/approve`);
+    const headers = await buildAuthHeaders();
+    await axios.post(`${api}/sales/${selectedSaleId}/approve`, undefined, { headers });
     await mutate();
     await mutateSaleDetail();
   };
 
   const handleReject = async () => {
     if (!selectedSaleId) return;
-    await axios.post(`${api}/sales/${selectedSaleId}/reject`);
+    const headers = await buildAuthHeaders();
+    await axios.post(`${api}/sales/${selectedSaleId}/reject`, undefined, { headers });
     await mutate();
     await mutateSaleDetail();
   };

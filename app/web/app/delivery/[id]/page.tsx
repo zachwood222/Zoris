@@ -4,6 +4,8 @@ import axios from 'axios';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { apiBase, buildAuthHeaders } from '../../../lib/api';
+
 type DeliveryStatus =
   | 'queued'
   | 'scheduled'
@@ -34,7 +36,7 @@ interface DeliveryStatusResponse {
 
 export default function DeliveryPage() {
   const { id } = useParams<{ id: string }>();
-  const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const api = apiBase;
 
   const [status, setStatus] = useState<DeliveryStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -60,8 +62,10 @@ export default function DeliveryPage() {
       setLoading(true);
       setError(null);
       try {
+        const headers = await buildAuthHeaders();
         const { data } = await axios.get<DeliveryStatusResponse>(
-          `${api}/sales/${id}/delivery-status`
+          `${api}/sales/${id}/delivery-status`,
+          { headers }
         );
         if (!ignore) {
           setStatus(data.delivery_status ?? 'queued');
@@ -93,9 +97,11 @@ export default function DeliveryPage() {
       setUpdating(true);
       setError(null);
       try {
+        const headers = await buildAuthHeaders();
         const { data } = await axios.patch<DeliveryStatusResponse>(
           `${api}/sales/${id}/delivery-status`,
-          { delivery_status: next }
+          { delivery_status: next },
+          { headers }
         );
         setStatus(data.delivery_status ?? next);
       } catch (err) {
