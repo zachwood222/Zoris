@@ -44,27 +44,51 @@ const workspaces = [
 const quickActions = [
   {
     href: '/kiosk/new-ticket',
-    label: 'Create assisted sale',
-    description: 'Start a new guided ticket for floor associates.',
+    label: 'Create ticket',
+    description: 'Kick off a guided assisted-sale ticket from the kiosk.',
     icon: '⚡'
   },
   {
-    href: '/receiving/schedule',
-    label: 'Schedule receiving window',
-    description: 'Reserve dock time and notify the warehouse crew.',
-    icon: '🗓️'
+    href: '/receiving/purchase-orders/new',
+    label: 'Create purchase order',
+    description: 'Draft a PO for inbound merchandise before it leaves the vendor.',
+    icon: '📄'
+  },
+  {
+    href: '/receiving',
+    label: 'Receive purchase order',
+    description: 'Scan line items and reconcile inventory at the dock door.',
+    icon: '📦'
+  },
+  {
+    href: '/kiosk/catalog/new-item',
+    label: 'Add new item',
+    description: 'Extend the catalog with pricing, stocking, and barcode details.',
+    icon: '➕'
+  },
+  {
+    href: '/kiosk/catalog',
+    label: 'Lookup item',
+    description: 'Search inventory availability and pull up ticket-ready details.',
+    icon: '🔍'
+  },
+  {
+    href: '/delivery/schedule',
+    label: 'Schedule a delivery',
+    description: 'Reserve a delivery window and dispatch the logistics crew.',
+    icon: '🚚'
+  },
+  {
+    href: '/delivery/complete',
+    label: 'Complete a delivery',
+    description: 'Capture signatures, photos, and notes after drop-off.',
+    icon: '✅'
   },
   {
     href: '/labels/batch',
     label: 'Batch print labels',
-    description: 'Send the morning pick list to the label printer.',
+    description: 'Send the morning pick list straight to the label printer.',
     icon: '🖨️'
-  },
-  {
-    href: '/incoming-trucks',
-    label: 'Log truck update',
-    description: 'Attach dock notes to purchase orders without leaving the floor.',
-    icon: '📦'
   }
 ];
 
@@ -124,7 +148,7 @@ export default function HomePage() {
               <h2 className="text-xl font-semibold text-white">Quick actions</h2>
               <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Do more</span>
             </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {quickActions.map((action) => (
                 <Link
                   key={action.href}

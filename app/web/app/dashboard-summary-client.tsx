@@ -30,6 +30,85 @@ type DashboardSummaryResponse = {
   system_status: DashboardSystemStatus[];
 };
 
+const fallbackSummary: DashboardSummaryResponse = {
+  metrics: [
+    {
+      label: 'Open Sales',
+      value: 8,
+      change: '3 created in last 24h',
+      status: 'awaiting fulfillment'
+    },
+    {
+      label: 'Draft OCR Tickets',
+      value: 5,
+      change: '2 new in last 24h',
+      status: 'needs review'
+    },
+    {
+      label: 'Inbound Purchase Orders',
+      value: 12,
+      change: '4 receipts logged in last 24h',
+      status: 'receiving queue'
+    },
+    {
+      label: 'Active Receivers',
+      value: 3,
+      change: '6 dock events in last 24h',
+      status: 'worker health'
+    }
+  ],
+  activity: [
+    {
+      title: 'Sale #1045 closed',
+      description: 'Total $2,940.22',
+      time: '18 minutes ago'
+    },
+    {
+      title: 'PO #771 partial received',
+      description: 'Vendor #88',
+      time: '42 minutes ago'
+    },
+    {
+      title: 'Dock 2 delivery check-in',
+      description: 'Scanned by Kelly M.',
+      time: '1 hour ago'
+    },
+    {
+      title: 'Sale #1046 open',
+      description: 'Total $1,204.09',
+      time: '2 hours ago'
+    },
+    {
+      title: 'PO #772 created',
+      description: 'Vendor #104',
+      time: '3 hours ago'
+    }
+  ],
+  system_status: [
+    {
+      label: 'Worker Health',
+      state: 'Operational',
+      badge: 'bg-emerald-500',
+      description: '3 associates checked in over last 4h'
+    },
+    {
+      label: 'OCR Pipeline',
+      state: 'Reviewing',
+      badge: 'bg-sky-400',
+      description: '5 tickets awaiting review.'
+    },
+    {
+      label: 'Sales Pipeline',
+      state: 'Active',
+      badge: 'bg-indigo-400',
+      description: '8 open sales ready for fulfillment.'
+    }
+  ]
+};
+
+const fallbackNoticeStyles =
+  'rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4 text-xs text-amber-100';
+
 const fetcher = async (url: string): Promise<DashboardSummaryResponse> => {
   const headers = await buildAuthHeaders({ Accept: 'application/json' });
   const response = await fetch(url, { headers });
@@ -48,16 +127,10 @@ function useDashboardSummary() {
 
 export function DashboardMetrics() {
   const { data, error } = useDashboardSummary();
-  const metrics = data?.metrics ?? [];
   const isLoading = !data && !error;
-
-  if (error) {
-    return (
-      <div className="col-span-full rounded-2xl border border-rose-500/40 bg-rose-500/10 p-6 text-sm text-rose-100">
-        Unable to load metrics.
-      </div>
-    );
-  }
+  const summary = data ?? (error ? fallbackSummary : null);
+  const metrics = summary?.metrics ?? [];
+  const usingFallback = Boolean(error);
 
   if (isLoading) {
     return (
@@ -77,8 +150,17 @@ export function DashboardMetrics() {
     );
   }
 
+  if (!summary) {
+    return null;
+  }
+
   return (
     <>
+      {usingFallback && (
+        <div className={`col-span-full ${fallbackNoticeStyles}`}>
+          Showing sample metrics while the analytics service reconnects.
+        </div>
+      )}
       {metrics.map((metric) => (
         <div
           key={metric.label}
@@ -98,16 +180,10 @@ export function DashboardMetrics() {
 
 export function DashboardActivityList() {
   const { data, error } = useDashboardSummary();
-  const activity = data?.activity ?? [];
   const isLoading = !data && !error;
-
-  if (error) {
-    return (
-      <li className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
-        Unable to load recent activity.
-      </li>
-    );
-  }
+  const summary = data ?? (error ? fallbackSummary : null);
+  const activity = summary?.activity ?? [];
+  const usingFallback = Boolean(error);
 
   if (isLoading) {
     return (
@@ -123,8 +199,17 @@ export function DashboardActivityList() {
     );
   }
 
+  if (!summary) {
+    return null;
+  }
+
   return (
     <>
+      {usingFallback && (
+        <li className={fallbackNoticeStyles}>
+          Showing recent activity from the demo dataset while live updates load.
+        </li>
+      )}
       {activity.map((item) => (
         <li key={`${item.title}-${item.time}`} className="border-l-2 border-sky-500/60 pl-4">
           <p className="text-sm font-semibold text-white">{item.title}</p>
@@ -141,16 +226,10 @@ export function DashboardActivityList() {
 
 export function DashboardSystemStatusList() {
   const { data, error } = useDashboardSummary();
-  const statuses = data?.system_status ?? [];
   const isLoading = !data && !error;
-
-  if (error) {
-    return (
-      <li className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
-        Unable to load system status.
-      </li>
-    );
-  }
+  const summary = data ?? (error ? fallbackSummary : null);
+  const statuses = summary?.system_status ?? [];
+  const usingFallback = Boolean(error);
 
   if (isLoading) {
     return (
@@ -170,8 +249,17 @@ export function DashboardSystemStatusList() {
     );
   }
 
+  if (!summary) {
+    return null;
+  }
+
   return (
     <>
+      {usingFallback && (
+        <li className={fallbackNoticeStyles}>
+          Displaying system health from cached demo data until the API responds.
+        </li>
+      )}
       {statuses.map((status) => (
         <li
           key={status.label}
