@@ -42,6 +42,13 @@
       <Font Family="Arial" Size="18" Bold="True" Italic="False" Underline="False" Strikeout="False" />
       <HorizontalAlignment>Right</HorizontalAlignment>
     </TextObject>
+    <TextObject>
+      <Name>UpchargeCode</Name>
+      <Bounds>4300,3200,1400,500</Bounds>
+      <Text>Upcharge {UPCHARGE_CODE}</Text>
+      <Font Family="Arial" Size="16" Bold="False" Italic="False" Underline="False" Strikeout="False" />
+      <HorizontalAlignment>Right</HorizontalAlignment>
+    </TextObject>
     <LineObject>
       <Name>Divider</Name>
       <StartPoint X="200" Y="3200" />

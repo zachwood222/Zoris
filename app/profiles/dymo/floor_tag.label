@@ -29,5 +29,10 @@
       <Bounds>100,2000,2600,400</Bounds>
       <Text>Code: {SHORT_CODE}</Text>
     </TextObject>
+    <TextObject>
+      <Name>UpchargeCode</Name>
+      <Bounds>100,2400,2600,400</Bounds>
+      <Text>Upcharge: {UPCHARGE_CODE}</Text>
+    </TextObject>
   </Objects>
 </DieCutLabel>
