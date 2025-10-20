@@ -30,6 +30,7 @@ const resolveDefaultApiBase = (): string => {
   }
 
   return publicBase ?? '';
+  return '/api';
 };
 
 export const apiBase = resolveDefaultApiBase();

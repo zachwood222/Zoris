@@ -20,3 +20,19 @@ async def test_parse_ticket_extracts_customer_name():
     parsed = await parser.parse_ticket(document)
 
     assert parsed.customer_name == "John Doe"
+
+
+@pytest.mark.asyncio
+async def test_parse_ticket_extracts_phone_from_following_word():
+    document = OcrDocument(
+        words=[
+            OcrWord(text="Phone:", confidence=0.99),
+            OcrWord(text="555-0100", confidence=0.98),
+            OcrWord(text="Phone:", confidence=0.97),
+            OcrWord(text="555-0200", confidence=0.96),
+        ]
+    )
+
+    parsed = await parser.parse_ticket(document)
+
+    assert parsed.phone == "555-0100"
