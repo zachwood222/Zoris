@@ -92,3 +92,27 @@ async def test_get_item_detail_not_found(client) -> None:
     response = await client.get("/items/9999")
     assert response.status_code == 404
     assert response.json()["detail"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_search_items_supports_short_code(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with SessionLocal() as session:
+        item = Item(
+            sku="SKU-SHORT",
+            description="Short Code Sample Lamp",
+            unit_cost=Decimal("40.00"),
+            price=Decimal("79.00"),
+            short_code="LAMP",
+        )
+        session.add(item)
+        await session.commit()
+
+    response = await client.get("/items/search", params={"q": "LAMP"})
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert any(result["sku"] == "SKU-SHORT" for result in payload)
