@@ -1,13 +1,19 @@
 # Getting Started
 
-1. Copy `.env.example` to `.env` and adjust secrets. When running the API outside of
-   Docker, install dependencies with `pip install -r requirements-dev.txt` to pick
-   up the pinned runtime and test packages.
+1. Copy `.env.example` to `.env` and adjust secrets. The sample values default to
+   local development services (`postgres://localhost`, `redis://localhost`) so the
+   API and web app can talk to the stack started by Docker Compose. When running
+   the API outside of Docker, install dependencies with `pip install -r
+   requirements-dev.txt` to pick up the pinned runtime and test packages.
 2. Run `docker compose up --build` from the repository root. This starts:
    - FastAPI at http://localhost:8000
    - Next.js at http://localhost:3000
    - PostgreSQL, Redis, MinIO, and Celery workers
    - Configure browser access to the API with the `CORS_ORIGINS` env var (defaults to `http://localhost:3000`).
+   The compose file now exports service-aware environment variables so the API,
+   Celery workers, and the Next.js dev server all resolve each other by hostname.
+   For example, the web container reads `API_INTERNAL_URL=http://api:8000` while
+   exposing `NEXT_PUBLIC_API_URL=http://localhost:8000` to the browser bundle.
 3. Run migrations and seed data inside the API container:
    ```bash
    docker compose exec api alembic upgrade head

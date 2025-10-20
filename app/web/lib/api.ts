@@ -1,17 +1,35 @@
 const normaliseBaseUrl = (value: string): string => value.replace(/\/$/, '');
 
-const resolveDefaultApiBase = (): string => {
-  const envBase = process.env.NEXT_PUBLIC_API_URL;
-
-  if (envBase && envBase.trim().length > 0) {
-    return normaliseBaseUrl(envBase.trim());
+const coerceBaseUrl = (value?: string | null): string | null => {
+  if (!value) {
+    return null;
   }
 
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  return normaliseBaseUrl(trimmed);
+};
+
+const resolveDefaultApiBase = (): string => {
+  const publicBase = coerceBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? null);
+
   if (typeof window === 'undefined') {
+    const internalBase = coerceBaseUrl(process.env.API_INTERNAL_URL ?? null);
+    if (internalBase) {
+      return internalBase;
+    }
+
+    if (publicBase) {
+      return publicBase;
+    }
+
     return 'http://localhost:8000';
   }
 
-  return '';
+  return publicBase ?? '';
 };
 
 export const apiBase = resolveDefaultApiBase();
