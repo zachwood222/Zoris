@@ -11,7 +11,7 @@ const resolveDefaultApiBase = (): string => {
     return 'http://localhost:8000';
   }
 
-  return '';
+  return '/api';
 };
 
 export const apiBase = resolveDefaultApiBase();
