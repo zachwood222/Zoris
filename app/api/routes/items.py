@@ -16,7 +16,17 @@ router = APIRouter()
 @router.get("/search", response_model=list[ItemSummary])
 async def search_items(q: str, session: AsyncSession = Depends(get_session)) -> list[ItemSummary]:
     pattern = f"%{q}%"
-    stmt = select(Item).where(or_(Item.sku.ilike(pattern), Item.description.ilike(pattern))).limit(20)
+    stmt = (
+        select(Item)
+        .where(
+            or_(
+                Item.sku.ilike(pattern),
+                Item.description.ilike(pattern),
+                Item.short_code.ilike(pattern),
+            )
+        )
+        .limit(20)
+    )
     items = (await session.scalars(stmt)).all()
     return [
         ItemSummary(
