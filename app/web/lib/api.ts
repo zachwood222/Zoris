@@ -1,4 +1,20 @@
-export const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const normaliseBaseUrl = (value: string): string => value.replace(/\/$/, '');
+
+const resolveDefaultApiBase = (): string => {
+  const envBase = process.env.NEXT_PUBLIC_API_URL;
+
+  if (envBase && envBase.trim().length > 0) {
+    return normaliseBaseUrl(envBase.trim());
+  }
+
+  if (typeof window === 'undefined') {
+    return 'http://localhost:8000';
+  }
+
+  return '';
+};
+
+export const apiBase = resolveDefaultApiBase();
 
 export const mockAuthHeaders: Record<string, string> = {
   'X-User-Id': 'demo',
