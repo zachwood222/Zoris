@@ -15,8 +15,12 @@ from ..utils.datetime import utc_now
 router = APIRouter()
 
 
-@router.post("/adjust")
-async def adjust_inventory(payload: InventoryAdjustRequest, session: AsyncSession = Depends(get_session)) -> dict:
+async def _apply_inventory_adjustment(
+    payload: InventoryAdjustRequest,
+    session: AsyncSession,
+    *,
+    ref_type: str,
+) -> dict:
     inventory = await session.scalar(
         select(Inventory).where(
             Inventory.item_id == payload.item_id,
@@ -41,7 +45,7 @@ async def adjust_inventory(payload: InventoryAdjustRequest, session: AsyncSessio
         location_id=payload.location_id,
         qty_delta=payload.qty_delta,
         reason=payload.reason,
-        ref_type="manual_adjust",
+        ref_type=ref_type,
         unit_cost=inventory.avg_cost,
         created_at=utc_now(),
     )
@@ -50,9 +54,17 @@ async def adjust_inventory(payload: InventoryAdjustRequest, session: AsyncSessio
     return {"inventory_id": inventory.inv_id, "new_qty": float(inventory.qty_on_hand)}
 
 
+@router.post("/adjust")
+async def adjust_inventory(
+    payload: InventoryAdjustRequest,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return await _apply_inventory_adjustment(payload, session, ref_type="manual_adjust")
+
+
 @router.post("/transfer")
 async def transfer_inventory(payload: InventoryTransferRequest, session: AsyncSession = Depends(get_session)) -> dict:
-    await adjust_inventory(
+    await _apply_inventory_adjustment(
         InventoryAdjustRequest(
             item_id=payload.item_id,
             location_id=payload.from_location_id,
@@ -60,8 +72,9 @@ async def transfer_inventory(payload: InventoryTransferRequest, session: AsyncSe
             reason="transfer",
         ),
         session,
+        ref_type="transfer",
     )
-    result = await adjust_inventory(
+    result = await _apply_inventory_adjustment(
         InventoryAdjustRequest(
             item_id=payload.item_id,
             location_id=payload.to_location_id,
@@ -69,5 +82,6 @@ async def transfer_inventory(payload: InventoryTransferRequest, session: AsyncSe
             reason="transfer",
         ),
         session,
+        ref_type="transfer",
     )
     return result
