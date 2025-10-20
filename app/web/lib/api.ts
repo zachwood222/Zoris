@@ -13,7 +13,7 @@ const coerceBaseUrl = (value?: string | null): string | null => {
   return normaliseBaseUrl(trimmed);
 };
 
-const resolveDefaultApiBase = (): string => {
+export const resolveDefaultApiBase = (): string => {
   const publicBase = coerceBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? null);
 
   if (typeof window === 'undefined') {
