@@ -29,7 +29,10 @@ const resolveDefaultApiBase = (): string => {
     return 'http://localhost:8000';
   }
 
-  return publicBase ?? '';
+  if (publicBase) {
+    return publicBase;
+  }
+
   return '/api';
 };
 
