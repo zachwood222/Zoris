@@ -7,14 +7,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from .db import engine
 from .models import domain
 from .services.shortcode import generate_short_code
 from .utils.datetime import utc_now
 
-LABEL_TEMPLATE_PATH = Path("app/profiles/dymo/floor_tag.label")
+LABEL_TEMPLATE_PATHS = {
+    "Floor 2x1": Path("app/profiles/dymo/floor_tag.label"),
+    "Quarter Page": Path("app/profiles/dymo/quarter_page.label"),
+}
 
 
 async def seed() -> None:
@@ -571,18 +574,19 @@ async def seed() -> None:
             )
         )
 
-        if LABEL_TEMPLATE_PATH.exists():
-            label_contents = LABEL_TEMPLATE_PATH.read_text()
-        else:
-            label_contents = "<label />"
-
-        session.add(
-            domain.LabelTemplate(
-                name="Floor 2x1",
-                target="item",
-                dymo_label_xml=label_contents,
+        for name, path in LABEL_TEMPLATE_PATHS.items():
+            label_contents = path.read_text() if path.exists() else "<label />"
+            existing_template = await session.scalar(
+                select(domain.LabelTemplate).where(domain.LabelTemplate.name == name)
             )
-        )
+            if existing_template is None:
+                session.add(
+                    domain.LabelTemplate(
+                        name=name,
+                        target="item",
+                        dymo_label_xml=label_contents,
+                    )
+                )
         await session.commit()
 
 

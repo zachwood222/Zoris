@@ -1,0 +1,67 @@
+<DieCutLabel Version="8.0" Units="twips">
+  <PaperOrientation>Portrait</PaperOrientation>
+  <Id>LargeShipping</Id>
+  <PaperName>Custom 4.25x5.5</PaperName>
+  <Objects>
+    <TextObject>
+      <Name>Department</Name>
+      <Bounds>200,160,5200,400</Bounds>
+      <Text>{DEPARTMENT}</Text>
+      <Font Family="Arial" Size="14" Bold="False" Italic="False" Underline="False" Strikeout="False" />
+      <HorizontalAlignment>Left</HorizontalAlignment>
+    </TextObject>
+    <TextObject>
+      <Name>ItemName</Name>
+      <Bounds>200,600,4000,1900</Bounds>
+      <Text>{ITEM_NAME}</Text>
+      <Font Family="Arial" Size="48" Bold="True" Italic="False" Underline="False" Strikeout="False" />
+      <HorizontalAlignment>Left</HorizontalAlignment>
+      <VerticalAlignment>Middle</VerticalAlignment>
+      <FitMode>ShrinkToFit</FitMode>
+    </TextObject>
+    <TextObject>
+      <Name>Variant</Name>
+      <Bounds>200,2600,4000,500</Bounds>
+      <Text>{VARIANT}</Text>
+      <Font Family="Arial" Size="16" Bold="False" Italic="False" Underline="False" Strikeout="False" />
+      <HorizontalAlignment>Left</HorizontalAlignment>
+    </TextObject>
+    <TextObject>
+      <Name>Price</Name>
+      <Bounds>4300,600,1400,1900</Bounds>
+      <Text>${PRICE}</Text>
+      <Font Family="Arial" Size="96" Bold="True" Italic="False" Underline="False" Strikeout="False" />
+      <HorizontalAlignment>Right</HorizontalAlignment>
+      <VerticalAlignment>Middle</VerticalAlignment>
+      <FitMode>ShrinkToFit</FitMode>
+    </TextObject>
+    <TextObject>
+      <Name>Unit</Name>
+      <Bounds>4300,2600,1400,500</Bounds>
+      <Text>{UNIT_SIZE}</Text>
+      <Font Family="Arial" Size="18" Bold="True" Italic="False" Underline="False" Strikeout="False" />
+      <HorizontalAlignment>Right</HorizontalAlignment>
+    </TextObject>
+    <LineObject>
+      <Name>Divider</Name>
+      <StartPoint X="200" Y="3200" />
+      <EndPoint X="5800" Y="3200" />
+      <LineWidth>10</LineWidth>
+    </LineObject>
+    <BarcodeObject>
+      <Name>Barcode</Name>
+      <Bounds>200,3400,5600,1300</Bounds>
+      <Text>{BARCODE}</Text>
+      <Type>Code128Auto</Type>
+      <Size>Large</Size>
+      <TextPosition>Bottom</TextPosition>
+    </BarcodeObject>
+    <TextObject>
+      <Name>Footer</Name>
+      <Bounds>200,4800,5600,500</Bounds>
+      <Text>{FOOTER}</Text>
+      <Font Family="Arial" Size="14" Bold="False" Italic="False" Underline="False" Strikeout="False" />
+      <HorizontalAlignment>Center</HorizontalAlignment>
+    </TextObject>
+  </Objects>
+</DieCutLabel>
