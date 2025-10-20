@@ -9,6 +9,7 @@ from .base import OcrDocument
 
 MONEY_RE = re.compile(r"\$?\s?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)")
 PHONE_RE = re.compile(r"\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})")
+PHONE_RE_SHORT = re.compile(r"(\d{3})[-.\s]?(\d{4})")
 
 
 @dataclass
@@ -32,9 +33,12 @@ def _extract_money(token: str) -> float | None:
 
 def _extract_phone(token: str) -> str | None:
     match = PHONE_RE.search(token)
-    if not match:
-        return None
-    return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+    if match:
+        return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+    short_match = PHONE_RE_SHORT.search(token)
+    if short_match:
+        return f"{short_match.group(1)}-{short_match.group(2)}"
+    return None
 
 
 async def parse_ticket(document: OcrDocument) -> ParsedTicket:
@@ -43,6 +47,7 @@ async def parse_ticket(document: OcrDocument) -> ParsedTicket:
     totals: dict[str, float] = {}
     confidences: list[float] = []
     collecting_name = False
+    expect_phone = False
     for word in words:
         raw_text = word.text
         token = raw_text.lower()
@@ -50,14 +55,19 @@ async def parse_ticket(document: OcrDocument) -> ParsedTicket:
         if token.startswith("customer"):
             name_tokens.clear()
             collecting_name = True
+            expect_phone = False
             continue
         elif token.startswith("phone"):
             phone = _extract_phone(word.text)
-            if phone:
+            if "phone" not in totals and phone:
                 totals["phone"] = phone  # type: ignore[assignment]
+                expect_phone = False
+            elif "phone" not in totals:
+                expect_phone = True
             collecting_name = False
         elif any(marker in token for marker in ("subtotal", "tax", "total")):
             collecting_name = False
+            expect_phone = False
         elif collecting_name:
             stripped = raw_text.strip().strip(":")
             if not stripped:
@@ -65,10 +75,16 @@ async def parse_ticket(document: OcrDocument) -> ParsedTicket:
             lowered = stripped.lower()
             if lowered.startswith("customer") or lowered.startswith("phone"):
                 collecting_name = False
+                expect_phone = False
                 continue
             if lowered.startswith("name") and len(lowered) <= 5:
                 continue
             name_tokens.append(stripped)
+        if expect_phone and "phone" not in totals:
+            phone = _extract_phone(word.text)
+            if phone:
+                totals["phone"] = phone  # type: ignore[assignment]
+                expect_phone = False
         money = _extract_money(word.text)
         if money is not None:
             if "subtotal" in token:
