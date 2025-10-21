@@ -1,5 +1,37 @@
 const normaliseBaseUrl = (value) => value.replace(/\/$/, '');
 
+const PROXY_PROBE_PATHS = ['/health', '/'];
+
+const joinUrl = (base, path) => {
+  const prefix = base.endsWith('/') ? base : `${base}/`;
+  return new URL(path, prefix);
+};
+
+const canReachProxyTarget = async (target) => {
+  let lastError;
+  for (const probePath of PROXY_PROBE_PATHS) {
+    try {
+      const url = joinUrl(target, probePath);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 700);
+      try {
+        await fetch(url, { method: 'HEAD', signal: controller.signal });
+        return true;
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('next.config.js could not reach API proxy target', target, lastError);
+  }
+
+  return false;
+};
+
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
 
 const isLocalHostname = (hostname) => {
@@ -92,6 +124,10 @@ const nextConfig = {
     }
 
     const target = normaliseBaseUrl(process.env.API_PROXY_TARGET ?? 'http://localhost:8000');
+
+    if (!(await canReachProxyTarget(target))) {
+      return [];
+    }
 
     return [
       {
