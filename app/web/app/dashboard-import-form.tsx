@@ -3,22 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 
 import { apiBase, buildAuthHeaders } from '../lib/api';
-
-type ImportSummary = {
-  message: string;
-  detail?: string | null;
-  counters: {
-    vendors: number;
-    locations: number;
-    items: number;
-    barcodes: number;
-    inventoryRecords: number;
-    customers: number;
-    warnings: string[];
-  };
-  importedAt: string;
-  clearedSampleData: boolean;
-};
+import type { ImportSummary } from './imports/import-summary';
 
 type Status =
   | { state: 'idle' }
