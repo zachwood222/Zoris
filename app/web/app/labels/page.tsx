@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import useSWR from 'swr';
@@ -65,6 +66,39 @@ type TemplateShowcase = {
   fields: string[];
 };
 
+const templatePreviewAssets: Record<string, { src: string; width: number; height: number; alt: string }> = {
+  'fowhands-classic-shelf': {
+    src: '/templates/fowhands-classic-shelf.svg',
+    width: 560,
+    height: 220,
+    alt: 'Classic shelf talker preview with product name, price, and crest'
+  },
+  'fowhands-price-burst': {
+    src: '/templates/fowhands-price-burst.svg',
+    width: 360,
+    height: 220,
+    alt: 'Price burst label preview highlighting price and QR call-to-action'
+  },
+  'fowhands-logistics-tag': {
+    src: '/templates/fowhands-logistics-tag.svg',
+    width: 420,
+    height: 280,
+    alt: 'Logistics delivery tag preview with routing details and crest'
+  },
+  'bin-label': {
+    src: '/templates/generic-template.svg',
+    width: 320,
+    height: 200,
+    alt: 'Generic label preview with bin location callouts'
+  },
+  'shelf-talker': {
+    src: '/templates/generic-template.svg',
+    width: 320,
+    height: 200,
+    alt: 'Generic shelf talker preview'
+  }
+};
+
 const templateShowcase: TemplateShowcase[] = [
   {
     id: 'fowhands-classic-shelf',
@@ -95,101 +129,60 @@ const templateShowcase: TemplateShowcase[] = [
   }
 ];
 
-const TemplatePreview = ({ id }: { id: TemplateShowcase['id'] }) => {
-  if (id === 'fowhands-classic-shelf') {
-    return (
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/90 via-slate-900 to-slate-950 p-5 shadow-inner shadow-slate-950/50">
-        <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.35em]">
-          <span className="inline-flex items-center gap-2 text-amber-200">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-amber-400/40 bg-amber-400/15 text-xs text-amber-200">
-              FH
-            </span>
-            Fowhands
-          </span>
-          <span className="text-slate-500">Est. 1894</span>
-        </div>
-        <p className="mt-4 text-[11px] uppercase tracking-[0.4em] text-slate-400">Heritage upholstery</p>
-        <p className="mt-2 text-lg font-semibold text-white">Westbury Wingback Chair</p>
-        <p className="mt-1 text-3xl font-bold text-amber-200">$1,249</p>
-        <div className="mt-5 flex items-center justify-between text-[10px] uppercase tracking-[0.4em] text-slate-400">
-          <span>SKU FH-81427</span>
-          <span>Scan • QR-9715</span>
-        </div>
-        <span className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-400/0 via-amber-400/40 to-amber-400/0" />
-      </div>
-    );
-  }
+type Printer = {
+  id: string;
+  name: string;
+  kind: string;
+  status: 'Ready' | 'Standby' | 'Offline';
+  connection: string;
+};
 
-  if (id === 'fowhands-price-burst') {
-    return (
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 shadow-inner shadow-slate-950/50">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-400/20 text-lg font-semibold text-amber-300">
-            FH
-          </span>
-          <div className="space-y-1">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-slate-400">New arrival</p>
-            <p className="text-base font-semibold text-white">Auburn Loom Throw</p>
-          </div>
-        </div>
-        <div className="mt-6 flex items-end justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">Now</p>
-            <p className="text-3xl font-bold text-amber-200">$68</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[11px] uppercase tracking-[0.4em] text-slate-500 line-through">$84</p>
-            <p className="text-[11px] uppercase tracking-[0.4em] text-emerald-300">Save 19%</p>
-          </div>
-        </div>
-        <div className="mt-5 flex items-center justify-between text-[10px] uppercase tracking-[0.4em] text-slate-400">
-          <span>SKU FH-20451</span>
-          <span>Bin C4</span>
-        </div>
-        <span className="absolute -right-10 -top-10 h-24 w-24 rotate-12 rounded-full border border-amber-400/30 bg-amber-400/10" />
-      </div>
-    );
+const printerFleet: Printer[] = [
+  {
+    id: 'dymo-wireless',
+    name: 'DYMO LabelWriter Wireless',
+    kind: 'Thermal roll',
+    status: 'Ready',
+    connection: 'Wi-Fi • 192.168.10.47'
+  },
+  {
+    id: 'dymo-550',
+    name: 'DYMO LabelWriter 550 Turbo',
+    kind: 'Thermal roll',
+    status: 'Ready',
+    connection: 'USB • Front kiosk'
+  },
+  {
+    id: 'dymo-5xl',
+    name: 'DYMO LabelWriter 5XL',
+    kind: 'Wide format thermal',
+    status: 'Standby',
+    connection: 'Wi-Fi • Dock rack AP'
+  },
+  {
+    id: 'hp-officejet',
+    name: 'HP OfficeJet Pro 9015',
+    kind: 'A4 inkjet',
+    status: 'Ready',
+    connection: 'LAN • 192.168.10.12'
   }
+];
 
-  if (id === 'fowhands-logistics-tag') {
-    return (
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-inner shadow-slate-950/50">
-        <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-200">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-400/30 text-[10px] font-semibold text-amber-100">
-              FH
-            </span>
-            Logistics
-          </span>
-          <span className="text-[10px] uppercase tracking-[0.35em] text-slate-500">Dock 3 • Lane B</span>
-        </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 text-left text-xs text-white">
-          <div className="rounded-xl bg-white/5 p-3 text-slate-200">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">Order</p>
-            <p className="mt-1 text-sm font-semibold text-white">SO-91842</p>
-            <p className="text-[11px] text-slate-400">Fowhands Home - Austin</p>
-          </div>
-          <div className="rounded-xl bg-white/5 p-3 text-slate-200">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">Customer</p>
-            <p className="mt-1 text-sm font-semibold text-white">R. Sandoval</p>
-            <p className="text-[11px] text-slate-400">White Glove Delivery</p>
-          </div>
-          <div className="rounded-xl bg-white/5 p-3 text-slate-200">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">Window</p>
-            <p className="mt-1 text-sm font-semibold text-white">10:00a – 12:00p</p>
-            <p className="text-[11px] text-slate-400">Saturday</p>
-          </div>
-          <div className="rounded-xl bg-white/5 p-3 text-slate-200">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">Notes</p>
-            <p className="mt-1 text-[11px] text-slate-300">Stage with blankets • Side door</p>
-          </div>
-        </div>
-        <span className="absolute inset-x-5 bottom-5 h-[2px] bg-gradient-to-r from-amber-400/0 via-amber-400/50 to-amber-400/0" />
-      </div>
-    );
-  }
+const TemplatePreview = ({ id }: { id: string }) => {
+  const asset = templatePreviewAssets[id] ?? templatePreviewAssets['bin-label'];
 
-  return null;
+  return (
+    <div className="relative flex items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60 p-3 shadow-inner shadow-slate-950/50">
+      <Image
+        src={asset.src}
+        alt={asset.alt}
+        width={asset.width}
+        height={asset.height}
+        className="h-auto w-full max-w-full rounded-xl object-contain"
+      />
+      <span aria-hidden className="pointer-events-none absolute inset-0 rounded-2xl border border-white/5" />
+    </div>
+  );
 };
 
 const defaultQueue: InboundQueueItem[] = [
@@ -228,10 +221,22 @@ export default function LabelsPage() {
     notes: ''
   });
   const [printJobs, setPrintJobs] = useState<
-    { id: string; template: string; item: string; quantity: number; timestamp: string; notes?: string }[]
+    { id: string; template: string; item: string; quantity: number; timestamp: string; printer: string; notes?: string }[]
   >([]);
   const [queue, setQueue] = useState<InboundQueueItem[]>(defaultQueue);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(defaultPurchaseOrders);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [pendingPrintJob, setPendingPrintJob] = useState<
+    | null
+    | {
+        template: LabelTemplate;
+        itemName: string;
+        sku: string;
+        quantity: number;
+        notes: string;
+      }
+  >(null);
+  const [selectedPrinterId, setSelectedPrinterId] = useState<string>(printerFleet[0]?.id ?? '');
 
   useEffect(() => {
     if (templates.length === 0) {
@@ -254,6 +259,29 @@ export default function LabelsPage() {
     () => templates.find((template) => template.template_id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates]
   );
+  const selectedPrinter = useMemo(
+    () => printerFleet.find((printer) => printer.id === selectedPrinterId) ?? null,
+    [selectedPrinterId]
+  );
+  const targetPrinterName = pendingPrintJob?.template.target ?? selectedTemplate?.target ?? null;
+
+  useEffect(() => {
+    if (targetPrinterName) {
+      const match = printerFleet.find((printer) => printer.name === targetPrinterName);
+      if (match && match.id !== selectedPrinterId) {
+        setSelectedPrinterId(match.id);
+        return;
+      }
+      if (!match && !selectedPrinterId && printerFleet.length > 0) {
+        setSelectedPrinterId(printerFleet[0].id);
+      }
+      return;
+    }
+
+    if (!selectedPrinterId && printerFleet.length > 0) {
+      setSelectedPrinterId(printerFleet[0].id);
+    }
+  }, [selectedPrinterId, targetPrinterName, printerFleet]);
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
@@ -267,21 +295,46 @@ export default function LabelsPage() {
     event.preventDefault();
     if (!selectedTemplate) return;
 
+    setPendingPrintJob({
+      template: selectedTemplate,
+      itemName: formState.itemName || 'Unnamed item',
+      sku: formState.sku,
+      quantity: formState.quantity,
+      notes: formState.notes
+    });
+    setIsPrintPreviewOpen(true);
+  };
+
+  const closePrintPreview = () => {
+    setPendingPrintJob(null);
+    setIsPrintPreviewOpen(false);
+  };
+
+  const handleConfirmPrint = () => {
+    if (!pendingPrintJob) return;
+
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const printerName = selectedPrinter?.name ?? 'Default printer';
 
     setPrintJobs((prev) => [
       {
         id: `JOB-${prev.length + 1}`,
-        template: selectedTemplate.name,
-        item: formState.itemName || 'Unnamed item',
-        quantity: formState.quantity,
-        notes: formState.notes || undefined,
-        timestamp
+        template: pendingPrintJob.template.name,
+        item: pendingPrintJob.itemName,
+        quantity: pendingPrintJob.quantity,
+        notes: pendingPrintJob.notes || undefined,
+        timestamp,
+        printer: printerName
       },
       ...prev
     ]);
 
     setFormState({ itemName: '', sku: '', quantity: 1, notes: '' });
+    closePrintPreview();
+
+    if (typeof window !== 'undefined' && typeof window.print === 'function') {
+      window.setTimeout(() => window.print(), 0);
+    }
   };
 
   const handleAdvanceQueue = (id: string) => {
@@ -334,10 +387,31 @@ export default function LabelsPage() {
               </p>
             </div>
             {selectedTemplate && (
-              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-6 text-sm text-slate-300">
-                <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Active template</p>
-                <p className="mt-3 text-lg font-semibold text-white">{selectedTemplate.name}</p>
-                <p className="mt-1 text-xs text-slate-400">{selectedTemplate.target}</p>
+              <div className="flex max-w-sm flex-col gap-4 rounded-2xl border border-white/10 bg-slate-950/60 p-6 text-sm text-slate-300">
+                <TemplatePreview id={selectedTemplate.template_id} />
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Active template</p>
+                  <p className="text-lg font-semibold text-white">{selectedTemplate.name}</p>
+                  <p className="text-xs text-slate-400">Suggested: {selectedTemplate.target}</p>
+                  {selectedPrinter && (
+                    <p className="text-xs text-slate-400">
+                      Current printer:
+                      <span className="ml-1 inline-flex items-center gap-1 text-sky-200">
+                        {selectedPrinter.name}
+                        <span
+                          aria-hidden
+                          className={`h-2 w-2 rounded-full ${
+                            selectedPrinter.status === 'Ready'
+                              ? 'bg-emerald-400'
+                              : selectedPrinter.status === 'Standby'
+                                ? 'bg-amber-300'
+                                : 'bg-rose-400'
+                          }`}
+                        />
+                      </span>
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -503,7 +577,7 @@ export default function LabelsPage() {
                       <div>
                         <p className="text-sm font-semibold text-white">{job.item}</p>
                         <p className="text-xs text-slate-400">
-                          {job.template} • Qty {job.quantity} • {job.timestamp}
+                          {job.template} • Qty {job.quantity} • {job.printer} • {job.timestamp}
                         </p>
                         {job.notes && <p className="text-xs text-slate-400">{job.notes}</p>}
                       </div>
@@ -605,6 +679,131 @@ export default function LabelsPage() {
           </aside>
         </section>
       </div>
+      {isPrintPreviewOpen && pendingPrintJob && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8"
+        >
+          <div className="relative w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-2xl shadow-sky-900/40">
+            <button
+              type="button"
+              onClick={closePrintPreview}
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg text-slate-300 transition hover:border-white/30 hover:bg-white/10"
+              aria-label="Close print preview"
+            >
+              ×
+            </button>
+            <div className="grid gap-8 p-8 lg:grid-cols-[1.3fr_1fr]">
+              <div className="space-y-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Print preview</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">{pendingPrintJob.template.name}</h2>
+                  <p className="mt-1 text-sm text-slate-300">
+                    {pendingPrintJob.quantity} label{pendingPrintJob.quantity === 1 ? '' : 's'} ready for {selectedPrinter?.name ?? 'your default printer'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
+                  <TemplatePreview id={pendingPrintJob.template.template_id} />
+                </div>
+                <div className="grid gap-4 text-sm text-slate-200 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Item</p>
+                    <p className="mt-2 text-base text-white">{pendingPrintJob.itemName}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">SKU</p>
+                    <p className="mt-2 text-base text-white">{pendingPrintJob.sku || '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Quantity</p>
+                    <p className="mt-2 text-base text-white">{pendingPrintJob.quantity}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Template</p>
+                    <p className="mt-2 text-base text-white">{pendingPrintJob.template.target}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-6">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">Printer</p>
+                  <div className="mt-3 space-y-4">
+                    <label className="flex flex-col gap-2 text-sm text-slate-200">
+                      <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Select device</span>
+                      <select
+                        value={selectedPrinterId}
+                        onChange={(event) => setSelectedPrinterId(event.target.value)}
+                        className="rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                      >
+                        {printerFleet.map((printer) => (
+                          <option key={printer.id} value={printer.id}>
+                            {printer.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {selectedPrinter && (
+                      <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-xs text-slate-300">
+                        <p className="flex items-center justify-between">
+                          <span>Type</span>
+                          <span className="text-white">{selectedPrinter.kind}</span>
+                        </p>
+                        <p className="mt-2 flex items-center justify-between">
+                          <span>Status</span>
+                          <span className="inline-flex items-center gap-2 text-white">
+                            <span
+                              aria-hidden
+                              className={`h-2 w-2 rounded-full ${
+                                selectedPrinter.status === 'Ready'
+                                  ? 'bg-emerald-400'
+                                  : selectedPrinter.status === 'Standby'
+                                    ? 'bg-amber-300'
+                                    : 'bg-rose-400'
+                              }`}
+                            />
+                            {selectedPrinter.status}
+                          </span>
+                        </p>
+                        <p className="mt-2 flex items-center justify-between">
+                          <span>Connection</span>
+                          <span className="text-white">{selectedPrinter.connection}</span>
+                        </p>
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-400">
+                      Confirming will open your browser&apos;s print dialog so you can finalise the device and quantity.
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">Batch notes</p>
+                  <p className="mt-3 whitespace-pre-line text-slate-300">
+                    {pendingPrintJob.notes.trim().length > 0 ? pendingPrintJob.notes : 'No additional notes'}
+                  </p>
+                </div>
+                <div className="mt-auto flex flex-col gap-3 text-sm sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={closePrintPreview}
+                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/10 px-5 py-2 font-semibold uppercase tracking-[0.28em] text-slate-200 transition hover:border-white/30 hover:bg-white/20"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmPrint}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-500/40 bg-sky-500/30 px-6 py-2 font-semibold uppercase tracking-[0.28em] text-sky-100 transition hover:border-sky-300/60 hover:bg-sky-500/40"
+                  >
+                    <span aria-hidden>🖨️</span>
+                    Send to printer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

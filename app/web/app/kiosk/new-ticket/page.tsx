@@ -1,5 +1,3 @@
-'use client';
-
 import KioskPage from '../page';
 
 export const metadata = {
