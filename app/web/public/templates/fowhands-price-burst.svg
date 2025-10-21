@@ -1,0 +1,11 @@
+<svg width="360" height="220" viewBox="0 0 360 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="360" height="220" rx="24" fill="#0f172a" />
+  <rect x="18" y="18" width="324" height="184" rx="20" fill="#1e293b" stroke="rgba(148,163,184,0.35)" />
+  <rect x="32" y="36" width="80" height="148" rx="16" fill="#1d4ed8" />
+  <text x="52" y="116" font-size="40" font-weight="700" fill="#e2e8f0" font-family="'DM Sans', 'Arial', sans-serif">FH</text>
+  <text x="122" y="76" font-size="18" fill="#cbd5f5" font-family="'DM Sans', 'Arial', sans-serif">Low profile sofa</text>
+  <text x="122" y="116" font-size="54" font-weight="700" fill="#fcd34d" font-family="'DM Sans', 'Arial', sans-serif">$899</text>
+  <text x="122" y="144" font-size="16" fill="#94a3b8" font-family="'DM Sans', 'Arial', sans-serif">MSRP $1,099</text>
+  <rect x="122" y="156" width="202" height="32" rx="12" fill="#111827" stroke="#1d4ed8" />
+  <text x="138" y="178" font-size="16" fill="#38bdf8" font-family="'DM Sans', 'Arial', sans-serif">Scan for staging ticket</text>
+</svg>
