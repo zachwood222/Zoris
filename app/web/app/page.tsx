@@ -149,13 +149,13 @@ export default function HomePage() {
               <h2 className="text-xl font-semibold text-white">Quick actions</h2>
               <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Do more</span>
             </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-6 grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <DashboardImportForm />
               {quickActions.map((action) => (
                 <Link
                   key={action.href}
                   href={action.href}
-                  className="group flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.08] p-5 text-left transition hover:border-white/40"
+                  className="group flex h-full flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.08] p-5 text-left transition hover:border-white/40"
                 >
                   <span className="text-2xl" aria-hidden>
                     {action.icon}
