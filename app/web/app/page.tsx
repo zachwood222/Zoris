@@ -6,7 +6,6 @@ import {
   DashboardSystemStatusList
 } from './dashboard-summary-client';
 import HeroStatusCard from './hero-status-card';
-import DashboardImportForm from './dashboard-import-form';
 
 const workspaces = [
   {
@@ -43,6 +42,12 @@ const workspaces = [
 ];
 
 const quickActions = [
+  {
+    href: '/imports/spreadsheet',
+    label: 'Import spreadsheet',
+    description: 'Clean spreadsheets and load vendor, item, and customer data.',
+    icon: '📥'
+  },
   {
     href: '/kiosk/new-ticket',
     label: 'Create ticket',
@@ -150,7 +155,6 @@ export default function HomePage() {
               <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Do more</span>
             </div>
             <div className="mt-6 grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              <DashboardImportForm />
               {quickActions.map((action) => (
                 <Link
                   key={action.href}
