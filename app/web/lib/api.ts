@@ -1,5 +1,33 @@
 const normaliseBaseUrl = (value: string): string => value.replace(/\/$/, '');
 
+const ensureLeadingSlash = (value: string): string => (value.startsWith('/') ? value : `/${value}`);
+
+const resolveSameOriginBase = (value: string): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const resolved = new URL(value, window.location.origin);
+
+    if (resolved.origin !== window.location.origin) {
+      return null;
+    }
+
+    const normalisedPath = resolved.pathname.replace(/\/$/, '');
+    if (!normalisedPath || normalisedPath === '/') {
+      return '/api';
+    }
+
+    return ensureLeadingSlash(normalisedPath);
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('resolveDefaultApiBase could not resolve public API URL', value, error);
+    }
+    return '/api';
+  }
+};
+
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
 
 const isLocalHostname = (hostname: string | null | undefined): boolean => {
@@ -77,6 +105,11 @@ export const resolveDefaultApiBase = (): string => {
   }
 
   if (publicBase) {
+    const sameOriginBase = resolveSameOriginBase(publicBase);
+    if (sameOriginBase) {
+      return sameOriginBase;
+    }
+
     if (isLocalUrl(publicBase) && !browserIsOnLocalhost()) {
       return '/api';
     }
