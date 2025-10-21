@@ -1,5 +1,52 @@
 const normaliseBaseUrl = (value: string): string => value.replace(/\/$/, '');
 
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
+
+const isLocalHostname = (hostname: string | null | undefined): boolean => {
+  if (!hostname) {
+    return false;
+  }
+
+  const value = hostname.trim().toLowerCase();
+  if (LOCAL_HOSTNAMES.has(value)) {
+    return true;
+  }
+
+  // Treat *.local domains as development hosts as well.
+  if (value.endsWith('.local')) {
+    return true;
+  }
+
+  return false;
+};
+
+const isLocalUrl = (value: string): boolean => {
+  try {
+    const { hostname } = new URL(value);
+    return isLocalHostname(hostname);
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('resolveDefaultApiBase received invalid URL', value, error);
+    }
+    return false;
+  }
+};
+
+const browserIsOnLocalhost = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return isLocalHostname(window.location.hostname);
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('resolveDefaultApiBase could not inspect window.location', error);
+    }
+    return false;
+  }
+};
+
 const coerceBaseUrl = (value?: string | null): string | null => {
   if (!value) {
     return null;
@@ -30,6 +77,10 @@ export const resolveDefaultApiBase = (): string => {
   }
 
   if (publicBase) {
+    if (isLocalUrl(publicBase) && !browserIsOnLocalhost()) {
+      return '/api';
+    }
+
     return publicBase;
   }
 
