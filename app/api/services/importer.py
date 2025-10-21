@@ -127,6 +127,27 @@ def _resolve_field(entity: str, key: str) -> str | None:
     return None
 
 
+def _derive_short_code(row: Mapping[str, Any]) -> str | None:
+    def _clean(value: str | None) -> str | None:
+        if not value:
+            return None
+        alphanumeric = re.sub(r"[^A-Za-z0-9]", "", value)
+        if not alphanumeric:
+            return None
+        return alphanumeric[:4].upper()
+
+    sources = (
+        _coerce_str(row.get("short_code")),
+        _coerce_str(row.get("sku")),
+        _coerce_str(row.get("description")),
+    )
+    for candidate in sources:
+        cleaned = _clean(candidate)
+        if cleaned:
+            return cleaned
+    return None
+
+
 def _prepare_row(entity: str, raw_row: Mapping[str, Any]) -> dict[str, Any]:
     normalised = {
         _normalise_header(str(key)): value
@@ -329,9 +350,15 @@ async def import_spreadsheet(
     for row in item_rows:
         sku = _coerce_str(row.get("sku"))
         description = _coerce_str(row.get("description"))
-        short_code = _coerce_str(row.get("short_code"))
-        if not sku or not description or not short_code:
+        if not sku or not description:
             counters.warnings.append(f"Skipped item because of missing required fields (sku={sku})")
+            continue
+
+        short_code = _derive_short_code(row)
+        if not short_code:
+            counters.warnings.append(
+                f"Skipped item because of missing short code (derived from sku={sku})"
+            )
             continue
 
         unit_cost = _coerce_decimal(row.get("unit_cost")) or _coerce_decimal(row.get("avg_cost"))
@@ -347,7 +374,7 @@ async def import_spreadsheet(
             unit_cost=unit_cost,
             price=price,
             tax_code=_coerce_str(row.get("tax_code")),
-            short_code=short_code[:4].upper(),
+            short_code=short_code,
             active=True,
         )
         session.add(item)
