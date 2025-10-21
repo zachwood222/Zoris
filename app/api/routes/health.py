@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from redis.exceptions import RedisError
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db import get_session
-from ..sample_data import ensure_sample_data
+from ..db import engine, get_session
+from ..models import domain
+from ..models.base import Base
 from ..schemas.common import HealthResponse
 from ..services.redis import get_redis_client
 
@@ -27,13 +28,31 @@ async def health(session: AsyncSession = Depends(get_session)) -> HealthResponse
     except SQLAlchemyError as exc:  # pragma: no cover - unexpected in tests
         db_ok = False
         detail["database_error"] = str(exc)
+    else:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        except SQLAlchemyError as exc:  # pragma: no cover - defensive safeguard
+            db_ok = False
+            detail["database_error"] = str(exc)
 
     try:
-        sample_summary = await ensure_sample_data(session)
-        detail["sample_data"] = sample_summary.model_dump()
+        dataset_totals = {
+            "vendors": int(
+                await session.scalar(select(func.count(domain.Vendor.vendor_id))) or 0
+            ),
+            "locations": int(
+                await session.scalar(select(func.count(domain.Location.location_id))) or 0
+            ),
+            "items": int(await session.scalar(select(func.count(domain.Item.item_id))) or 0),
+            "customers": int(
+                await session.scalar(select(func.count(domain.Customer.customer_id))) or 0
+            ),
+        }
+        detail["dataset"] = dataset_totals
     except Exception as exc:  # pragma: no cover - defensive safeguard
         sample_ok = False
-        detail["sample_data_error"] = str(exc)
+        detail["dataset_error"] = str(exc)
 
     redis_status: bool | None = None
     client = get_redis_client()

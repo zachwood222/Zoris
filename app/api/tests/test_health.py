@@ -20,12 +20,12 @@ async def test_health(client) -> None:
     assert payload["ok"] is True
     assert payload["fastapi"] is True
     assert payload["database"] is True
-    assert "sample_data" in payload["detail"]
-    assert payload["detail"]["sample_data"]["totals"]["items"] >= 3
+    assert "dataset" in payload["detail"]
+    assert payload["detail"]["dataset"]["items"] == 0
 
     async with SessionLocal() as session:
         demo_item = await session.scalar(select(Item).where(Item.sku == "DEMO-SOFA"))
-        assert demo_item is not None
+        assert demo_item is None
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

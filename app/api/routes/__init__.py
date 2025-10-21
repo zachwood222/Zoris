@@ -5,6 +5,7 @@ from . import (
     config,
     dashboard,
     health,
+    imports,
     incoming_trucks,
     inventory,
     items,
@@ -26,4 +27,5 @@ api_router.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
 api_router.include_router(
     incoming_trucks.router, prefix="/incoming-trucks", tags=["incoming-trucks"]
 )
+api_router.include_router(imports.router)
 api_router.include_router(dashboard.router)

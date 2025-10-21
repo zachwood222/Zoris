@@ -6,6 +6,7 @@ import {
   DashboardSystemStatusList
 } from './dashboard-summary-client';
 import HeroStatusCard from './hero-status-card';
+import DashboardImportForm from './dashboard-import-form';
 
 const workspaces = [
   {
@@ -149,6 +150,7 @@ export default function HomePage() {
               <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Do more</span>
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <DashboardImportForm />
               {quickActions.map((action) => (
                 <Link
                   key={action.href}
