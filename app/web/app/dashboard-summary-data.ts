@@ -22,6 +22,7 @@ export type DashboardSummaryResponse = {
   metrics: DashboardMetric[];
   activity: DashboardActivity[];
   system_status: DashboardSystemStatus[];
+  detail?: string;
 };
 
 export const fallbackDashboardSummary: DashboardSummaryResponse = {
