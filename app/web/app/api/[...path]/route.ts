@@ -141,25 +141,17 @@ const handleFallback = async (
       }
     }
 
-    const detail = backend
-      ? `Unable to reach the FastAPI backend at ${redactUrl(
-          backend
-        )}. Confirm the service is running, that \`CORS_ORIGINS\` allows this dashboard, and that server-to-server traffic is permitted.`
-      : 'Unable to reach the FastAPI backend. Set NEXT_PUBLIC_API_URL or API_PROXY_TARGET to your API base URL (e.g. https://zoris.onrender.com) so imports can be forwarded.';
-
-    const payload: Record<string, unknown> = {
-      detail,
-      exampleSummary: createMockImportSummary()
-    };
-
-    if (backend) {
-      payload.attemptedBase = redactUrl(backend);
-    }
-
-    return NextResponse.json(payload, {
-      status: 503,
-      headers: fallbackHeaders('fallback-imports-spreadsheet')
-    });
+    return NextResponse.json(
+      {
+        detail:
+          'Unable to reach the FastAPI backend. Set NEXT_PUBLIC_API_URL or API_PROXY_TARGET to your API base URL so imports can be forwarded.',
+        exampleSummary: createMockImportSummary()
+      },
+      {
+        status: 503,
+        headers: fallbackHeaders('fallback-imports-spreadsheet')
+      }
+    );
   }
 
   if (request.method === 'OPTIONS') {

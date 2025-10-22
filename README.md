@@ -37,22 +37,6 @@ pip install -r requirements-dev.txt
 > dashboard falls back to mocked responses and spreadsheet uploads will not
 > reach the backend.
 
-### Render configuration for live spreadsheet imports
-
-1. **Expose the API to the dashboard.** In your FastAPI service, set
-   `CORS_ORIGINS` to include the origin of the deployed Next.js frontend
-   (e.g. `https://your-dashboard.onrender.com`). Redeploy the API so browsers are
-   allowed to call it directly.
-2. **Point the dashboard at the API.** In the Next.js (web) service, set both
-   `NEXT_PUBLIC_API_URL` **and** `API_PROXY_TARGET` to the FastAPI base URL,
-   such as `https://zoris.onrender.com`. Redeploy to ensure the build captures
-   the new environment variables.
-3. **Verify connectivity.** After both services are live, visit the dashboard
-   and confirm that `/api/dashboard/summary` responds with live metrics (no
-   `fallback-dashboard-summary` header) and that spreadsheet uploads succeed.
-   If the proxy cannot reach the API it now returns a 503 JSON payload that
-   includes the URL it attempted.
-
 ## Running locally
 See [app/docs/GETTING_STARTED.md](app/docs/GETTING_STARTED.md) for detailed steps.
 
