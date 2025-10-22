@@ -66,15 +66,16 @@ const proxyToBackend = async (
   backend: URL
 ): Promise<Response | null> => {
   const target = buildTargetUrl(backend, segments, request);
+  const headers = new Headers(request.headers);
+  headers.delete('host');
+  headers.delete('connection');
+  headers.delete('content-length');
+
   const init: RequestInit & { duplex?: 'half' } = {
     method: request.method,
-    headers: new Headers(request.headers),
+    headers,
     redirect: 'manual'
   };
-
-  init.headers.delete('host');
-  init.headers.delete('connection');
-  init.headers.delete('content-length');
 
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     init.body = request.body;
