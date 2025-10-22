@@ -13,6 +13,15 @@ const fallbackHeaders = (label: string): Headers => {
   return headers;
 };
 
+const redactUrl = (value: URL): string => {
+  const sanitized = new URL(value.toString());
+  sanitized.username = '';
+  sanitized.password = '';
+  sanitized.search = '';
+  sanitized.hash = '';
+  return sanitized.toString().replace(/\/$/, '');
+};
+
 const absoluteUrl = (value: string | undefined | null): URL | null => {
   if (!value) {
     return null;
@@ -102,15 +111,25 @@ const proxyToBackend = async (
 
 const handleFallback = async (
   request: NextRequest,
-  segments: string[]
+  segments: string[],
+  backend: URL | null
 ): Promise<Response> => {
   const path = segments.join('/');
 
   if (request.method === 'GET' && path === 'dashboard/summary') {
-    return NextResponse.json(fallbackDashboardSummary, {
-      status: 200,
-      headers: fallbackHeaders('fallback-dashboard-summary')
-    });
+    const detail = backend
+      ? `Fell back to demo metrics because the FastAPI backend at ${redactUrl(
+          backend
+        )} did not respond.`
+      : 'Fell back to demo metrics because no FastAPI backend URL is configured.';
+
+    return NextResponse.json(
+      { ...fallbackDashboardSummary, detail },
+      {
+        status: 200,
+        headers: fallbackHeaders('fallback-dashboard-summary')
+      }
+    );
   }
 
   if (request.method === 'POST' && path === 'imports/spreadsheet') {
@@ -122,8 +141,23 @@ const handleFallback = async (
       }
     }
 
-    return NextResponse.json(createMockImportSummary(), {
-      status: 200,
+    const detail = backend
+      ? `Unable to reach the FastAPI backend at ${redactUrl(
+          backend
+        )}. Confirm the service is running, that \`CORS_ORIGINS\` allows this dashboard, and that server-to-server traffic is permitted.`
+      : 'Unable to reach the FastAPI backend. Set NEXT_PUBLIC_API_URL or API_PROXY_TARGET to your API base URL (e.g. https://zoris.onrender.com) so imports can be forwarded.';
+
+    const payload: Record<string, unknown> = {
+      detail,
+      exampleSummary: createMockImportSummary()
+    };
+
+    if (backend) {
+      payload.attemptedBase = redactUrl(backend);
+    }
+
+    return NextResponse.json(payload, {
+      status: 503,
       headers: fallbackHeaders('fallback-imports-spreadsheet')
     });
   }
@@ -132,9 +166,13 @@ const handleFallback = async (
     return new Response(null, { status: 204, headers: fallbackHeaders('fallback-options') });
   }
 
+  const detail = backend
+    ? `Upstream API at ${redactUrl(backend)} is unavailable. Start the FastAPI server or update API_PROXY_TARGET.`
+    : 'Upstream API is unavailable because no backend URL is configured. Set NEXT_PUBLIC_API_URL or API_PROXY_TARGET to your FastAPI base URL.';
+
   return NextResponse.json(
     {
-      message: 'Upstream API is unavailable. Start the FastAPI server to access live data.',
+      message: detail,
       path
     },
     {
@@ -155,7 +193,7 @@ const handler = async (request: NextRequest, context: RouteContext): Promise<Res
     }
   }
 
-  return handleFallback(request, segments);
+  return handleFallback(request, segments, backend);
 };
 
 export { handler as DELETE };
