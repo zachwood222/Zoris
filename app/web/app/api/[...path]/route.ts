@@ -122,10 +122,17 @@ const handleFallback = async (
       }
     }
 
-    return NextResponse.json(createMockImportSummary(), {
-      status: 200,
-      headers: fallbackHeaders('fallback-imports-spreadsheet')
-    });
+    return NextResponse.json(
+      {
+        detail:
+          'Unable to reach the FastAPI backend. Set NEXT_PUBLIC_API_URL or API_PROXY_TARGET to your API base URL so imports can be forwarded.',
+        exampleSummary: createMockImportSummary()
+      },
+      {
+        status: 503,
+        headers: fallbackHeaders('fallback-imports-spreadsheet')
+      }
+    );
   }
 
   if (request.method === 'OPTIONS') {

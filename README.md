@@ -29,6 +29,14 @@ pip install -r requirements-dev.txt
 > repository's `runtime.txt` file up to date so that `pip install -r
 > requirements.txt` succeeds during builds.
 
+> **Connecting the dashboard to FastAPI (Render/hosted builds):** The Next.js
+> UI proxies API calls through `/api/*`. Configure either `NEXT_PUBLIC_API_URL`
+> (for browser requests) or `API_PROXY_TARGET` (for server-side rewrites) with
+> the base URL of your FastAPI deployment, for example
+> `https://zoris.onrender.com`. Without one of these environment variables, the
+> dashboard falls back to mocked responses and spreadsheet uploads will not
+> reach the backend.
+
 ## Running locally
 See [app/docs/GETTING_STARTED.md](app/docs/GETTING_STARTED.md) for detailed steps.
 
