@@ -101,6 +101,11 @@ export interface UseIncomingTrucksResult {
   mutate: KeyedMutator<IncomingTruck[]>;
 }
 
+const getIncomingTrucksUrl = (): string => {
+  const api = getApiBase();
+  return `${api}/incoming-trucks`;
+};
+
 const fetcher = async <T,>(url: string): Promise<T> => {
   const headers = await buildAuthHeaders();
   const { data } = await axios.get<T>(url, { headers });
@@ -108,8 +113,7 @@ const fetcher = async <T,>(url: string): Promise<T> => {
 };
 
 export function useIncomingTrucks(): UseIncomingTrucksResult {
-  const api = getApiBase();
-  const trucksUrl = `${api}/incoming-trucks`;
+  const trucksUrl = getIncomingTrucksUrl();
   const {
     data,
     error,
@@ -282,6 +286,7 @@ export async function submitTruckUpdate(
     current: IncomingTruck[] | undefined;
   }
 ): Promise<TruckUpdate> {
+  const trucksUrl = getIncomingTrucksUrl();
   const optimisticUpdate: TruckUpdate = {
     update_id: Date.now(),
     truck_id: truckId,
