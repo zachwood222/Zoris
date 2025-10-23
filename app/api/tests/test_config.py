@@ -73,3 +73,73 @@ def test_default_cors_origins_cover_local_hosts(monkeypatch: pytest.MonkeyPatch)
     assert "http://localhost:3000" in settings.cors_origins
     assert "http://127.0.0.1:3000" in settings.cors_origins
     assert "http://0.0.0.0:3000" in settings.cors_origins
+
+
+def test_cors_origins_accepts_json_array(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "[\"https://app.example.com\", \"https://admin.example.com\"]",
+    )
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://app.example.com",
+        "https://admin.example.com",
+    ]
+
+
+def test_cors_origins_accepts_json_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", '"https://solo.example.com"')
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == ["https://solo.example.com"]
+
+
+def test_cors_origins_accepts_whitespace_delimited(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://app.example.com https://admin.example.com\nhttps://portal.example.com",
+    )
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://app.example.com",
+        "https://admin.example.com",
+        "https://portal.example.com",
+    ]
+
+    _clear_settings_cache()
+
+
+def test_cors_origins_supports_wildcard_entries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com https://app.allowed.com")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == ["https://app.allowed.com"]
+    assert settings.cors_origin_regex == "^(?:https://.*\\.example\\.com)$"
+
+    _clear_settings_cache()
+
+
+def test_cors_origin_regex_merges_with_wildcards(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com")
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", "^https://allowed.example.org$")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == []
+    assert (
+        settings.cors_origin_regex
+        == "^(?:(?:https://allowed.example.org)|(?:https://.*\\.example\\.com))$"
+    )
+
+    _clear_settings_cache()
