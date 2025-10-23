@@ -5,10 +5,37 @@ import json
 import re
 from functools import lru_cache
 from typing import Any, Literal
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _normalise_origin(value: str) -> str:
+    """Return a canonical origin string for CORS configuration."""
+
+    trimmed = value.strip().strip("\"'")
+    if not trimmed:
+        return ""
+
+    if trimmed == "*":
+        return "*"
+
+    normalised = trimmed.rstrip("/")
+
+    try:
+        parsed = urlsplit(normalised)
+    except ValueError:
+        return normalised
+
+    if parsed.scheme and parsed.hostname:
+        scheme = parsed.scheme.lower()
+        hostname = parsed.hostname.lower()
+        if parsed.port:
+            hostname = f"{hostname}:{parsed.port}"
+        return f"{scheme}://{hostname}"
+
+    return normalised
 
 
 class Settings(BaseSettings):
@@ -210,24 +237,25 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             stripped = value.strip()
 
-            if not stripped:
-                return []
+            if stripped:
+                # Support JSON-style configuration such as
+                # ``["https://app.example.com", "https://admin.example.com"]``.
+                try:
+                    parsed = json.loads(stripped)
+                except json.JSONDecodeError:
+                    parsed = None
+                else:
+                    if isinstance(parsed, str):
+                        parsed = [parsed]
+                    if isinstance(parsed, (list, tuple)):
+                        origins = [
+                            _normalise_origin(str(item))
+                            for item in parsed
+                            if isinstance(item, str)
+                        ]
+                        return [origin for origin in origins if origin]
 
-            # Support JSON-style configuration such as
-            # ``["https://app.example.com", "https://admin.example.com"]``.
-            try:
-                parsed = json.loads(stripped)
-            except json.JSONDecodeError:
-                parsed = None
-            else:
-                if isinstance(parsed, str):
-                    parsed = [parsed]
-                if isinstance(parsed, (list, tuple)):
-                    origins = [str(item).strip() for item in parsed if isinstance(item, str)]
-                    return [origin for origin in origins if origin]
-
-            tokens = re.split(r"[,\s]+", stripped)
-            origins = [token.strip().strip("\"'") for token in tokens]
+            origins = [_normalise_origin(part) for part in stripped.split(",")]
             return [origin for origin in origins if origin]
 
         return value
@@ -244,99 +272,16 @@ class Settings(BaseSettings):
 
     @staticmethod
     def _origin_to_pattern(origin: str) -> str | None:
-        cleaned = origin.strip().strip("\"'")
+        cleaned = origin.strip()
         if not cleaned:
             return None
-        if cleaned.lower().startswith("regex:"):
+        if cleaned.startswith("regex:"):
             pattern = cleaned.split(":", 1)[1].strip()
             return pattern or None
-        if cleaned == "*":
-            return ".*"
         if "*" in cleaned:
             escaped = re.escape(cleaned)
             return escaped.replace(r"\*", ".*")
         return None
-
-    @staticmethod
-    def _host_fragment_to_pattern(fragment: str) -> str | None:
-        """Interpret bare host declarations as HTTP(S) origin patterns."""
-
-        try:
-            assumed = urlsplit(f"http://{fragment}")
-        except ValueError:
-            return None
-
-        if not assumed.hostname:
-            return None
-
-        host = assumed.hostname.lower()
-        port = assumed.port
-        raw_fragment = fragment.strip()
-
-        if ":" in host and not raw_fragment.startswith("["):
-            host = f"[{host}]"
-
-        host_pattern = re.escape(host)
-        if port is not None:
-            netloc_pattern = f"{host_pattern}:{port}"
-        else:
-            netloc_pattern = f"{host_pattern}(?::\\d+)?"
-
-        return f"https?://{netloc_pattern}"
-
-    @classmethod
-    def _classify_origin(cls, origin: str) -> tuple[str | None, str | None]:
-        """Return canonical literal or regex representation for an origin entry."""
-
-        cleaned = origin.strip().strip("\"'")
-        if not cleaned:
-            return None, None
-
-        pattern = cls._origin_to_pattern(cleaned)
-        if pattern:
-            return None, pattern
-
-        if cleaned.lower() == "null":
-            return "null", None
-
-        parts = urlsplit(cleaned)
-        if parts.scheme and parts.hostname:
-            normalized = cls._normalize_literal_origin(cleaned)
-            return (normalized, None) if normalized else (None, None)
-
-        host_pattern = cls._host_fragment_to_pattern(cleaned)
-        if host_pattern:
-            return None, host_pattern
-
-        normalized = cleaned.rstrip("/")
-        return (normalized, None) if normalized else (None, None)
-
-    @staticmethod
-    def _normalize_literal_origin(origin: str) -> str:
-        """Coerce literal origin definitions into canonical form."""
-
-        cleaned = origin.strip().strip("\"'")
-        if not cleaned:
-            return ""
-
-        parts = urlsplit(cleaned)
-        if parts.scheme and parts.hostname:
-            scheme = parts.scheme.lower()
-            host = parts.hostname.lower()
-
-            if ":" in host and not host.startswith("["):
-                host = f"[{host}]"
-
-            port = parts.port
-            default_port = 80 if scheme == "http" else 443 if scheme == "https" else None
-            if port and port != default_port:
-                netloc = f"{host}:{port}"
-            else:
-                netloc = host
-
-            return urlunsplit((scheme, netloc, "", "", ""))
-
-        return cleaned.rstrip("/")
 
     @model_validator(mode="after")
     def _finalize_cors_configuration(self) -> "Settings":
@@ -355,11 +300,11 @@ class Settings(BaseSettings):
             origin_str = str(origin).strip()
             if not origin_str:
                 continue
-            literal, pattern = self._classify_origin(origin_str)
+            pattern = self._origin_to_pattern(origin_str)
             if pattern:
                 pattern_sources.append(pattern)
-            elif literal:
-                literal_origins.append(literal)
+            else:
+                literal_origins.append(origin_str)
 
         literal_origins = self._dedupe_preserve_order(literal_origins)
         self.cors_origins = literal_origins

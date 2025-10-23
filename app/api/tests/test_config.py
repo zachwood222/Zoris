@@ -101,11 +101,8 @@ def test_cors_origins_accepts_json_string(monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.cors_origins == ["https://solo.example.com"]
 
 
-def test_cors_origins_accepts_whitespace_delimited(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(
-        "CORS_ORIGINS",
-        "https://app.example.com https://admin.example.com\nhttps://portal.example.com",
-    )
+def test_cors_origins_strip_trailing_slashes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://app.example.com/ , https://api.example.com///")
     _clear_settings_cache()
 
     settings = config.get_settings()
@@ -134,6 +131,15 @@ def test_cors_origins_supports_wildcard_entries(monkeypatch: pytest.MonkeyPatch)
 def test_cors_origin_regex_merges_with_wildcards(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com")
     monkeypatch.setenv("CORS_ORIGIN_REGEX", "^https://allowed.example.org$")
+        "https://api.example.com",
+    ]
+
+
+def test_cors_origins_normalize_paths_and_case(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://Admin.EXAMPLE.com:8443/dashboard, https://app.example.com/base/path",
+    )
     _clear_settings_cache()
 
     settings = config.get_settings()
@@ -145,85 +151,7 @@ def test_cors_origin_regex_merges_with_wildcards(monkeypatch: pytest.MonkeyPatch
     )
 
     _clear_settings_cache()
-
-
-def test_cors_literals_normalize_trailing_slashes(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(
-        "CORS_ORIGINS",
-        "https://app.example.com/ https://app.example.com https://admin.example.com/",
-    )
-    _clear_settings_cache()
-
-    settings = config.get_settings()
-
     assert settings.cors_origins == [
+        "https://admin.example.com:8443",
         "https://app.example.com",
-        "https://admin.example.com",
     ]
-
-    _clear_settings_cache()
-
-
-def test_cors_literals_normalize_default_ports(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(
-        "CORS_ORIGINS",
-        "HTTPS://APP.EXAMPLE.COM:443/ http://api.example.com:80 https://app.example.com:4443",
-    )
-    _clear_settings_cache()
-
-    settings = config.get_settings()
-
-    assert settings.cors_origins == [
-        "https://app.example.com",
-        "http://api.example.com",
-        "https://app.example.com:4443",
-    ]
-
-    _clear_settings_cache()
-
-
-def test_cors_host_fragments_expand_to_regex(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CORS_ORIGINS", "app.example.com portal.example.com:8443")
-    _clear_settings_cache()
-
-    settings = config.get_settings()
-
-    assert settings.cors_origins == []
-    assert settings.cors_origin_regex is not None
-
-    pattern = re.compile(settings.cors_origin_regex)
-    assert pattern.fullmatch("https://app.example.com")
-    assert pattern.fullmatch("http://app.example.com:8080")
-    assert pattern.fullmatch("https://portal.example.com:8443")
-    assert not pattern.fullmatch("https://portal.example.com:9443")
-
-    _clear_settings_cache()
-
-
-def test_cors_ipv6_host_fragment_support(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CORS_ORIGINS", "[::1] ::1")
-    _clear_settings_cache()
-
-    settings = config.get_settings()
-
-    assert settings.cors_origins == []
-    assert settings.cors_origin_regex is not None
-
-    pattern = re.compile(settings.cors_origin_regex)
-    assert pattern.fullmatch("http://[::1]:3000")
-    assert pattern.fullmatch("https://[::1]")
-    assert not pattern.fullmatch("https://[::2]")
-
-    _clear_settings_cache()
-
-
-def test_cors_preserves_null_literal(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CORS_ORIGINS", "null https://app.example.com")
-    _clear_settings_cache()
-
-    settings = config.get_settings()
-
-    assert settings.cors_origins == ["null", "https://app.example.com"]
-    assert settings.cors_origin_regex is None
-
-    _clear_settings_cache()

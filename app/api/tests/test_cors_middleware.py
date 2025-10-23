@@ -58,36 +58,3 @@ def test_preflight_respects_wildcard_patterns(
         assert response.headers.get("access-control-allow-origin") == origin
 
     _clear_settings_cache()
-
-
-@pytest.mark.parametrize(
-    "origin,expected_status",
-    [
-        ("https://app.example.com", 200),
-        ("http://app.example.com:8080", 200),
-        ("https://portal.example.com", 400),
-    ],
-)
-def test_preflight_accepts_host_fragment_configuration(
-    monkeypatch: pytest.MonkeyPatch, origin: str, expected_status: int
-) -> None:
-    monkeypatch.setenv("CORS_ORIGINS", "app.example.com")
-    _clear_settings_cache()
-
-    settings = config.get_settings()
-    app = _build_cors_app(settings)
-    client = TestClient(app)
-
-    response = client.options(
-        "/dashboard/summary",
-        headers={
-            "Origin": origin,
-            "Access-Control-Request-Method": "GET",
-        },
-    )
-
-    assert response.status_code == expected_status
-    if expected_status == 200:
-        assert response.headers.get("access-control-allow-origin") == origin
-
-    _clear_settings_cache()
