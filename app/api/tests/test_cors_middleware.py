@@ -58,3 +58,34 @@ def test_preflight_respects_wildcard_patterns(
         assert response.headers.get("access-control-allow-origin") == origin
 
     _clear_settings_cache()
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://zoris-dashboard.onrender.com",
+        "https://zoris.onrender.com",
+    ],
+)
+def test_preflight_allows_default_render_origins(
+    monkeypatch: pytest.MonkeyPatch, origin: str
+) -> None:
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+    app = _build_cors_app(settings)
+    client = TestClient(app)
+
+    response = client.options(
+        "/dashboard/summary",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == origin
+
+    _clear_settings_cache()
