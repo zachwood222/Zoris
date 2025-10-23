@@ -9,7 +9,9 @@
    - FastAPI at http://localhost:8000
    - Next.js at http://localhost:3000
    - PostgreSQL, Redis, MinIO, and Celery workers
-   - Configure browser access to the API with the `CORS_ORIGINS` env var (defaults to `http://localhost:3000`).
+   - Configure browser access to the API with the `CORS_ORIGINS` env var (defaults to
+     the local Next.js host `http://localhost:3000` plus the hosted dashboard origin
+     `https://zoris-dashboard.onrender.com`).
    The compose file now exports service-aware environment variables so the API,
    Celery workers, and the Next.js dev server all resolve each other by hostname.
    For example, the web container reads `API_INTERNAL_URL=http://api:8000` while
