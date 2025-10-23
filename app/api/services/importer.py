@@ -159,6 +159,11 @@ def _prepare_row(entity: str, raw_row: Mapping[str, Any]) -> dict[str, Any]:
         field = _resolve_field(entity, key)
         if field is None:
             continue
+        if field in prepared:
+            if value is None:
+                continue
+            if isinstance(value, str) and not value.strip():
+                continue
         prepared[field] = value
     return prepared
 
@@ -285,6 +290,8 @@ async def _clear_existing_data(session: AsyncSession) -> bool:
         domain.Vendor,
     ):
         await session.execute(delete(model))
+
+    await session.flush()
 
     return cleared_demo
 

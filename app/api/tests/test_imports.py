@@ -6,9 +6,10 @@ import pytest
 from openpyxl import Workbook
 from sqlalchemy import select
 
+from .. import sample_data
 from ..db import SessionLocal, engine
 from ..models.base import Base
-from ..models.domain import Barcode, Customer, Inventory, Item, Location
+from ..models.domain import Barcode, Customer, Inventory, Item, Location, Vendor
 
 
 @pytest.mark.asyncio
@@ -19,6 +20,61 @@ async def test_spreadsheet_import(client) -> None:
 
 @pytest.mark.asyncio
 async def test_spreadsheet_import_xlsx_cleaning(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.mark.asyncio
+async def test_import_replaces_existing_records(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await sample_data.apply()
+
+    first_csv = """entity,name,terms,phone,email,sku,description,short_code,price,qty_on_hand,location_name\n"""
+    first_csv += "vendors,Acme Supply,Net 30,555-1000,vendor@example.com,,,,,,\n"
+    first_csv += "locations,Main Showroom,floor,,,,,,,\n"
+    first_csv += "items,,,,,SKU-ONE,First Chair,F001,199.00,5,Main Showroom\n"
+
+    files = {"file": ("first.csv", io.BytesIO(first_csv.encode("utf-8")), "text/csv")}
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["clearedSampleData"] is True
+    assert payload["counters"]["items"] == 1
+
+    async with SessionLocal() as session:
+        demo_item = await session.scalar(select(Item).where(Item.sku.like("DEMO%")))
+        assert demo_item is None
+        imported_item = await session.scalar(select(Item).where(Item.sku == "SKU-ONE"))
+        assert imported_item is not None
+
+    second_csv = """entity,name,terms,phone,email,sku,description,short_code,price,qty_on_hand,location_name\n"""
+    second_csv += "vendors,Beta Goods,Net 45,555-2000,beta@example.com,,,,,,\n"
+    second_csv += "locations,Warehouse West,warehouse,,,,,,,\n"
+    second_csv += "items,,,,,SKU-TWO,Second Sofa,F002,349.00,2,Warehouse West\n"
+
+    files = {"file": ("second.csv", io.BytesIO(second_csv.encode("utf-8")), "text/csv")}
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["clearedSampleData"] is False
+    assert payload["counters"]["items"] == 1
+
+    async with SessionLocal() as session:
+        legacy_item = await session.scalar(select(Item).where(Item.sku == "SKU-ONE"))
+        assert legacy_item is None
+        current_item = await session.scalar(select(Item).where(Item.sku == "SKU-TWO"))
+        assert current_item is not None
+
+        vendor_names = set((await session.scalars(select(Vendor.name))).all())
+        assert vendor_names == {"Beta Goods"}
+
+        location_names = set((await session.scalars(select(Location.name))).all())
+        assert location_names == {"Warehouse West"}
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
