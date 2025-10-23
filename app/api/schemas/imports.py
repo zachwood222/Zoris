@@ -14,6 +14,9 @@ class ImportCountersSchema(BaseModel):
     barcodes: int = 0
     inventory_records: int = Field(0, alias="inventoryRecords")
     customers: int = 0
+    sales: int = 0
+    purchase_orders: int = Field(0, alias="purchaseOrders")
+    receivings: int = 0
     warnings: list[str] = Field(default_factory=list)
 
     model_config = {
@@ -26,6 +29,9 @@ class ImportCountersSchema(BaseModel):
                 "barcodes": 25,
                 "inventoryRecords": 25,
                 "customers": 10,
+                "sales": 12,
+                "purchaseOrders": 7,
+                "receivings": 4,
                 "warnings": ["Skipped item because of missing SKU"],
             }
         },

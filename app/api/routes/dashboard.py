@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from ..db import get_session
 from ..models.domain import PurchaseOrder, Receiving, Sale
 from ..schemas.dashboard import (
     DashboardActivity,
+    DashboardDrilldownItem,
+    DashboardDrilldowns,
     DashboardMetric,
     DashboardSummaryResponse,
     DashboardSystemStatus,
@@ -22,6 +26,10 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 def _humanize_delta(now: datetime, past: datetime) -> str:
+    if past.tzinfo is None:
+        past = past.replace(tzinfo=timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     delta = now - past
     seconds = int(delta.total_seconds())
     if seconds < 60:
@@ -34,6 +42,64 @@ def _humanize_delta(now: datetime, past: datetime) -> str:
         return f"{hours} hour{'s' if hours != 1 else ''} ago"
     days = hours // 24
     return f"{days} day{'s' if days != 1 else ''} ago"
+
+
+BADGE_STYLES = {
+    "sky": "border border-sky-400/30 bg-sky-400/10 text-sky-200",
+    "emerald": "border border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
+    "amber": "border border-amber-400/30 bg-amber-400/10 text-amber-200",
+    "rose": "border border-rose-400/30 bg-rose-400/10 text-rose-200",
+    "slate": "border border-white/20 bg-white/5 text-slate-200",
+}
+
+
+def _badge_style(color: str) -> str:
+    return BADGE_STYLES.get(color, BADGE_STYLES["slate"])
+
+
+def _sale_badge(status: str) -> tuple[str, str]:
+    mapping = {
+        "open": ("Awaiting fulfillment", "sky"),
+        "fulfilled": ("Fulfilled", "emerald"),
+        "draft": ("Draft", "amber"),
+        "void": ("Voided", "rose"),
+    }
+    return mapping.get(status, (status.title(), "slate"))
+
+
+def _po_badge(status: str) -> tuple[str, str]:
+    mapping = {
+        "draft": ("Draft", "amber"),
+        "open": ("Open", "sky"),
+        "partial": ("Partial", "amber"),
+        "received": ("Received", "emerald"),
+        "closed": ("Closed", "slate"),
+    }
+    return mapping.get(status, (status.title(), "slate"))
+
+
+def _slugify(prefix: str, value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    if not slug:
+        slug = prefix
+    return f"{prefix}-{slug}"
+
+
+def _format_eta(now: datetime, target: datetime | None) -> str:
+    if target is None:
+        return "No ETA provided"
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    if target >= now:
+        delta_days = (target - now).days
+        if delta_days <= 0:
+            return "Due today"
+        if delta_days == 1:
+            return "Due in 1 day"
+        return f"Due in {delta_days} days"
+    return f"Arrived {_humanize_delta(now, target)}"
 
 
 @router.get("/summary", response_model=DashboardSummaryResponse)
@@ -197,8 +263,150 @@ async def get_dashboard_summary(
         ),
     ]
 
+    open_sales_rows = (
+        await session.execute(
+            select(Sale)
+            .options(selectinload(Sale.customer))
+            .where(Sale.status == "open")
+            .order_by(Sale.sale_date.desc())
+            .limit(10)
+        )
+    ).scalars().all()
+    open_sales_items: list[DashboardDrilldownItem] = []
+    for sale in open_sales_rows:
+        display_ref = sale.external_ref or f"#{sale.sale_id}"
+        customer_name = sale.customer.name if sale.customer else "Walk-in customer"
+        total_value = f"${float(sale.total or 0):,.2f}"
+        subtitle = f"{customer_name} • {total_value}"
+        created_reference = sale.created_at or sale.sale_date
+        created_label = (
+            _humanize_delta(now, created_reference) if created_reference else "Unknown time"
+        )
+        created_by = sale.created_by or "Unassigned"
+        meta = f"Created {created_label} by {created_by}"
+        badge_label, badge_color = _sale_badge(sale.status or "open")
+        open_sales_items.append(
+            DashboardDrilldownItem(
+                id=_slugify("sale", display_ref),
+                title=f"Sale {display_ref}",
+                subtitle=subtitle,
+                meta=meta,
+                badge_label=badge_label,
+                badge_class=_badge_style(badge_color),
+            )
+        )
+
+    draft_ticket_rows = (
+        await session.execute(
+            select(Sale)
+            .options(selectinload(Sale.customer))
+            .where(Sale.status == "draft", Sale.source == "ocr_ticket")
+            .order_by(Sale.created_at.desc())
+            .limit(10)
+        )
+    ).scalars().all()
+    draft_ticket_items: list[DashboardDrilldownItem] = []
+    for ticket in draft_ticket_rows:
+        reference = (
+            ticket.external_ref
+            or (ticket.ocr_payload or {}).get("ticket_id")
+            or f"#{ticket.sale_id}"
+        )
+        customer_name = ticket.customer.name if ticket.customer else "Walk-in customer"
+        total_value = f"${float(ticket.total or 0):,.2f}"
+        subtitle = f"{customer_name} • {total_value}"
+        created_reference = ticket.created_at or ticket.sale_date
+        captured_label = (
+            _humanize_delta(now, created_reference) if created_reference else "Unknown time"
+        )
+        meta_parts = [f"Captured {captured_label}"]
+        if ticket.ocr_confidence is not None:
+            meta_parts.append(f"Confidence {float(ticket.ocr_confidence):.0%}")
+        meta = " • ".join(meta_parts)
+        draft_ticket_items.append(
+            DashboardDrilldownItem(
+                id=_slugify("ticket", reference),
+                title=f"Ticket {reference}",
+                subtitle=subtitle,
+                meta=meta,
+                badge_label="Needs review",
+                badge_class=_badge_style("amber"),
+            )
+        )
+
+    inbound_po_rows = (
+        await session.execute(
+            select(PurchaseOrder)
+            .options(
+                selectinload(PurchaseOrder.vendor),
+                selectinload(PurchaseOrder.receivings),
+            )
+            .where(PurchaseOrder.status.in_(["open", "partial"]))
+            .order_by(PurchaseOrder.created_at.desc())
+            .limit(10)
+        )
+    ).scalars().all()
+    inbound_po_items: list[DashboardDrilldownItem] = []
+    for po in inbound_po_rows:
+        reference = po.external_ref or f"#{po.po_id}"
+        vendor_name = po.vendor.name if po.vendor else "Unknown vendor"
+        receipts_count = len(po.receivings)
+        subtitle = f"{vendor_name} • {receipts_count} receipt(s)"
+        meta = f"{_format_eta(now, po.expected_date)} • Created by {po.created_by or 'Unknown'}"
+        badge_label, badge_color = _po_badge(po.status or "open")
+        inbound_po_items.append(
+            DashboardDrilldownItem(
+                id=_slugify("po", reference),
+                title=f"PO {reference}",
+                subtitle=subtitle,
+                meta=meta,
+                badge_label=badge_label,
+                badge_class=_badge_style(badge_color),
+            )
+        )
+
+    receiver_activity = (
+        await session.execute(
+            select(
+                Receiving.received_by,
+                func.count(Receiving.receipt_id),
+                func.max(Receiving.received_at),
+            )
+            .where(Receiving.received_at >= worker_window)
+            .group_by(Receiving.received_by)
+            .order_by(func.max(Receiving.received_at).desc())
+        )
+    ).all()
+    active_receivers_items: list[DashboardDrilldownItem] = []
+    for received_by, count, last_received_at in receiver_activity:
+        name = received_by or "Unassigned"
+        subtitle = f"{int(count)} receipt(s) this shift"
+        meta = (
+            f"Last scan {_humanize_delta(now, last_received_at)}"
+            if last_received_at
+            else "No recent scans"
+        )
+        active_receivers_items.append(
+            DashboardDrilldownItem(
+                id=_slugify("receiver", name),
+                title=name,
+                subtitle=subtitle,
+                meta=meta,
+                badge_label="Active",
+                badge_class=_badge_style("emerald"),
+            )
+        )
+
+    drilldowns = DashboardDrilldowns(
+        open_sales=open_sales_items,
+        draft_ocr_tickets=draft_ticket_items,
+        inbound_purchase_orders=inbound_po_items,
+        active_receivers=active_receivers_items,
+    )
+
     return DashboardSummaryResponse(
         metrics=metrics,
         activity=activity_payload,
         system_status=system_status,
+        drilldowns=drilldowns,
     )

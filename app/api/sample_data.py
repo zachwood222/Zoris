@@ -239,6 +239,7 @@ async def ensure_sample_data(session: AsyncSession) -> SampleDataSummary:
             deposit_amt=0,
             created_by="sample.loader",
             source="sample_data",
+            external_ref="SAMPLE-SALE",
         )
         session.add(sale)
         await session.flush()
@@ -272,6 +273,7 @@ async def ensure_sample_data(session: AsyncSession) -> SampleDataSummary:
             terms="Net 30",
             notes="Sample purchase order",
             created_by="sample.loader",
+            external_ref="SAMPLE-PO",
         )
         session.add(po)
         await session.flush()
@@ -298,6 +300,7 @@ async def ensure_sample_data(session: AsyncSession) -> SampleDataSummary:
             received_at=utc_now(),
             received_by="Sample Receiver",
             created_at=utc_now(),
+            external_ref="SAMPLE-RECEIPT",
         )
         session.add(receipt)
         await session.flush()
