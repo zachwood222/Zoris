@@ -1,7 +1,7 @@
 import axios from 'axios';
 import useSWR, { KeyedMutator } from 'swr';
 
-import { apiBase, buildAuthHeaders } from './api';
+import { getApiBase, buildAuthHeaders } from './api';
 
 export type TruckStatus =
   | 'scheduled'
@@ -107,9 +107,9 @@ const fetcher = async <T,>(url: string): Promise<T> => {
   return data;
 };
 
-const trucksUrl = `${apiBase}/incoming-trucks`;
-
 export function useIncomingTrucks(): UseIncomingTrucksResult {
+  const api = getApiBase();
+  const trucksUrl = `${api}/incoming-trucks`;
   const {
     data,
     error,
@@ -132,6 +132,7 @@ export function useIncomingTrucks(): UseIncomingTrucksResult {
 }
 
 export function usePoLineSearch(query: string): UsePoLineSearchResult {
+  const api = getApiBase();
   const trimmed = query.trim();
   const shouldFetch = trimmed.length >= 2;
   const {
@@ -139,7 +140,7 @@ export function usePoLineSearch(query: string): UsePoLineSearchResult {
     error,
     isLoading
   } = useSWR<PoLineSearchResult[]>(
-    shouldFetch ? `${apiBase}/po/lines/search?q=${encodeURIComponent(trimmed)}` : null,
+    shouldFetch ? `${api}/po/lines/search?q=${encodeURIComponent(trimmed)}` : null,
     async (url) => {
       const headers = await buildAuthHeaders();
       const { data } = await axios.get(url, { headers });

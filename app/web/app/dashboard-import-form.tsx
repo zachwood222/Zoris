@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 
-import { apiBase, buildAuthHeaders } from '../lib/api';
+import { getApiBase, buildAuthHeaders } from '../lib/api';
 import type { ImportSummary } from './imports/import-summary';
 
 type Status =
@@ -73,7 +73,8 @@ export default function DashboardImportForm(): JSX.Element {
 
     try {
       const headers = await buildAuthHeaders();
-      const base = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
+      const baseUrl = getApiBase();
+      const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       const response = await fetch(`${base}/imports/spreadsheet`, {
         method: 'POST',
         body: formData,

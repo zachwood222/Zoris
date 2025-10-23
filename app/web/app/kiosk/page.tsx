@@ -3,7 +3,7 @@
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 
-import { apiBase, buildAuthHeaders } from '../../lib/api';
+import { getApiBase, buildAuthHeaders } from '../../lib/api';
 
 interface ItemSummary {
   item_id: number;
@@ -48,6 +48,7 @@ type StatusMessage = {
 };
 
 export default function KioskPage() {
+  const api = useMemo(() => getApiBase(), []);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ItemSummary[]>([]);
   const [lines, setLines] = useState<SaleLineDraft[]>([]);
@@ -76,7 +77,7 @@ export default function KioskPage() {
     const handler = setTimeout(async () => {
       try {
         const headers = await buildAuthHeaders();
-        const response = await axios.get<ItemSummary[]>(`${apiBase}/items/search`, {
+        const response = await axios.get<ItemSummary[]>(`${api}/items/search`, {
           params: { q: query },
           signal: controller.signal,
           headers
@@ -123,7 +124,7 @@ export default function KioskPage() {
 
       try {
         const headers = await buildAuthHeaders();
-        const response = await axios.get<ItemDetail>(`${apiBase}/items/${selectedItem.item_id}`, {
+        const response = await axios.get<ItemDetail>(`${api}/items/${selectedItem.item_id}`, {
           signal: controller.signal,
           headers
         });
@@ -238,7 +239,7 @@ export default function KioskPage() {
 
     try {
       const headers = await buildAuthHeaders();
-      const { data: create } = await axios.post<{ sale_id: number }>(`${apiBase}/sales`, {
+      const { data: create } = await axios.post<{ sale_id: number }>(`${api}/sales`, {
         created_by: 'kiosk',
         source: 'kiosk'
       }, { headers });
@@ -246,7 +247,7 @@ export default function KioskPage() {
 
       for (const line of lines) {
         await axios.post(
-          `${apiBase}/sales/${saleId}/add-line`,
+          `${api}/sales/${saleId}/add-line`,
           {
             sku: line.item.sku,
             qty: line.qty,
@@ -257,7 +258,7 @@ export default function KioskPage() {
       }
 
       const { data: finalizeData } = await axios.post<{ sale_id: number }>(
-        `${apiBase}/sales/${saleId}/finalize`,
+        `${api}/sales/${saleId}/finalize`,
         undefined,
         { headers }
       );
@@ -317,7 +318,7 @@ export default function KioskPage() {
 
     try {
       const headers = await buildAuthHeaders({ 'Content-Type': 'multipart/form-data' });
-      const { data } = await axios.post<{ sale_id: number }>(`${apiBase}/ocr/sale-ticket`, form, {
+      const { data } = await axios.post<{ sale_id: number }>(`${api}/ocr/sale-ticket`, form, {
         headers
       });
       setStatus({
