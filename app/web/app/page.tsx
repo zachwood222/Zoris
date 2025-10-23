@@ -211,19 +211,20 @@ const workflowGuides = [
 
 export default function HomePage() {
   return (
-    <main className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-16 px-6 py-16 text-slate-100 lg:px-12 lg:py-20">
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.3),_rgba(76,29,149,0.05))]" />
-      <header className="flex flex-col gap-6 rounded-3xl border border-white/10 bg-slate-900/80 p-10 shadow-2xl shadow-sky-900/20 backdrop-blur">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-3">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-200">
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 px-6 py-12 text-slate-100 lg:px-12 lg:py-16">
+      <header className="flex flex-col gap-8 rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-lg">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/80 px-4 py-1 text-xs font-semibold uppercase text-slate-200">
               <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-              Live dashboard
-            </span>
-            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">Command your retail operations</h1>
-            <p className="max-w-2xl text-sm text-slate-300 sm:text-base">
-              Guide every team with actionable insights, ready-to-launch workflows, and the context they need to make quick decisions.
-            </p>
+              Dashboard
+            </div>
+            <div className="space-y-3">
+              <h1 className="text-3xl font-semibold text-white sm:text-4xl">Command your retail operations</h1>
+              <p className="max-w-2xl text-sm text-slate-300 sm:text-base">
+                Guide every team with actionable insights and quick access to the tools that keep work moving.
+              </p>
+            </div>
           </div>
           <HeroStatusCard />
         </div>
@@ -232,77 +233,76 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <div className="space-y-6">
-          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/20 backdrop-blur">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Workspaces</h2>
+      <section className="grid gap-10 lg:grid-cols-[1.2fr_1fr]">
+        <div className="space-y-10">
+          <article className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow">
+            <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold text-white">Workspaces</h2>
                 <p className="text-sm text-slate-300">Jump to the area that matches the job in front of you.</p>
               </div>
-              <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Navigate</span>
-            </div>
-            <div className="mt-8 space-y-6">
+              <span className="text-xs font-medium text-slate-400">{workspaceSections.length} collections</span>
+            </header>
+            <div className="space-y-5">
               {workspaceSections.map((section) => (
-                <div key={section.title} className="space-y-4 rounded-2xl border border-white/5 bg-white/5 p-5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
+                <section key={section.title} className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-900/80 p-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1">
                       <h3 className="text-base font-semibold text-white">{section.title}</h3>
                       <p className="text-sm text-slate-300">{section.description}</p>
                     </div>
-                    <span className="text-xs uppercase tracking-[0.35em] text-slate-400">{section.items.length} tools</span>
+                    <span className="text-xs font-medium text-slate-400">{section.items.length} tools</span>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-3 md:grid-cols-2">
                     {section.items.map((workspace) => (
                       <Link
                         key={workspace.href}
                         href={workspace.href}
-                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.08] p-6 text-left transition hover:border-white/40"
+                        className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-950/60 p-4 transition hover:border-slate-600 hover:bg-slate-900"
                       >
-                        <span className="absolute inset-0 -z-10 bg-gradient-to-br from-sky-400/20 via-transparent to-indigo-500/30 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                        <div className="flex items-start justify-between text-2xl">
-                          <span aria-hidden>{workspace.icon}</span>
-                          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-300 transition duration-300 group-hover:text-white">
-                            Open
-                          </span>
+                        <span className="text-xl" aria-hidden>
+                          {workspace.icon}
+                        </span>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-semibold text-white">{workspace.label}</h4>
+                          <p className="text-xs text-slate-300">{workspace.description}</p>
                         </div>
-                        <h4 className="mt-4 text-lg font-semibold text-white">{workspace.label}</h4>
-                        <p className="mt-2 text-sm text-slate-300">{workspace.description}</p>
+                        <span className="text-xs font-medium text-slate-400">Open</span>
                       </Link>
                     ))}
                   </div>
-                </div>
+                </section>
               ))}
             </div>
-          </div>
+          </article>
 
-          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/20 backdrop-blur">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Guided workflows</h2>
+          <article className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow">
+            <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold text-white">Guided workflows</h2>
                 <p className="text-sm text-slate-300">Use ready-made playbooks to point teammates in the right direction.</p>
               </div>
-              <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Playbook</span>
-            </div>
-            <div className="mt-8 grid gap-5">
+              <span className="text-xs font-medium text-slate-400">{workflowGuides.length} guides</span>
+            </header>
+            <div className="space-y-4">
               {workflowGuides.map((guide) => (
-                <div key={guide.title} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-inner shadow-black/10">
-                  <div className="flex flex-col gap-2 border-b border-white/10 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
+                <section key={guide.title} className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/60 p-5">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1">
                       <h3 className="text-base font-semibold text-white">{guide.title}</h3>
                       <p className="text-sm text-slate-300">{guide.description}</p>
                     </div>
-                    <span className="text-xs uppercase tracking-[0.35em] text-slate-400">{guide.steps.length} steps</span>
+                    <span className="text-xs font-medium text-slate-400">{guide.steps.length} steps</span>
                   </div>
-                  <ol className="grid gap-1 px-3 py-3 sm:grid-cols-3">
+                  <ol className="grid gap-2 sm:grid-cols-3">
                     {guide.steps.map((step, index) => (
-                      <li key={step.href} className="group">
+                      <li key={step.href}>
                         <Link
                           href={step.href}
-                          className="flex h-full flex-col gap-2 rounded-xl border border-transparent p-4 transition hover:border-white/40 hover:bg-white/10"
+                          className="flex h-full flex-col gap-2 rounded-lg border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-600 hover:bg-slate-900"
                         >
-                          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
-                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-sm text-white">
+                          <span className="flex items-center gap-2 text-xs font-medium text-slate-300">
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs text-white">
                               {index + 1}
                             </span>
                             Step {index + 1}
@@ -311,88 +311,86 @@ export default function HomePage() {
                             <span aria-hidden className="mr-2">{step.icon}</span>
                             {step.label}
                           </span>
-                          <span className="text-xs text-slate-300">{step.description}</span>
+                          <span className="text-xs text-slate-400">{step.description}</span>
                         </Link>
                       </li>
                     ))}
                   </ol>
-                </div>
+                </section>
               ))}
             </div>
-          </div>
+          </article>
 
-          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/20 backdrop-blur">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Quick actions</h2>
+          <article className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow">
+            <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold text-white">Quick actions</h2>
                 <p className="text-sm text-slate-300">Launch the task that will unblock the next step.</p>
               </div>
-              <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Do more</span>
-            </div>
-            <div className="mt-6 grid gap-4">
+              <span className="text-xs font-medium text-slate-400">{quickActionGroups.length} groups</span>
+            </header>
+            <div className="space-y-4">
               {quickActionGroups.map((group) => (
-                <section key={group.title} className="space-y-4 rounded-2xl border border-white/5 bg-white/5 p-5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
+                <section key={group.title} className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/60 p-5">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1">
                       <h3 className="text-base font-semibold text-white">{group.title}</h3>
                       <p className="text-sm text-slate-300">{group.description}</p>
                     </div>
-                    <span className="text-xs uppercase tracking-[0.35em] text-slate-400">{group.items.length} shortcuts</span>
+                    <span className="text-xs font-medium text-slate-400">{group.items.length} shortcuts</span>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {group.items.map((action) => (
                       <Link
                         key={action.href}
                         href={action.href}
-                        className="group flex h-full flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.08] p-5 text-left transition hover:border-white/40"
+                        className="flex h-full flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-600 hover:bg-slate-900"
                       >
-                        <span className="text-2xl" aria-hidden>
+                        <span className="text-xl" aria-hidden>
                           {action.icon}
                         </span>
                         <div className="space-y-1">
                           <p className="text-sm font-semibold text-white">{action.label}</p>
-                          <p className="text-xs text-slate-300">{action.description}</p>
+                          <p className="text-xs text-slate-400">{action.description}</p>
                         </div>
-                        <span className="mt-auto text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 transition group-hover:text-white">
-                          Launch
-                        </span>
+                        <span className="mt-auto text-xs font-medium text-slate-400">Launch</span>
                       </Link>
                     ))}
                   </div>
                 </section>
               ))}
             </div>
-          </div>
+          </article>
         </div>
 
         <aside className="flex flex-col gap-6">
-          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/20 backdrop-blur">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Activity feed</h2>
-              <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Live</span>
-            </div>
-            <ul className="mt-6 space-y-5">
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow">
+            <header className="flex items-center justify-between text-sm text-slate-300">
+              <h2 className="text-lg font-semibold text-white">Activity feed</h2>
+              <span>Live</span>
+            </header>
+            <ul className="space-y-4 text-sm text-slate-300">
               <DashboardActivityList />
             </ul>
-          </div>
+          </section>
 
-          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/20 backdrop-blur">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">System status</h2>
-              <span className="text-xs uppercase tracking-[0.35em] text-slate-400">Health</span>
-            </div>
-            <ul className="mt-6 space-y-5">
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow">
+            <header className="flex items-center justify-between text-sm text-slate-300">
+              <h2 className="text-lg font-semibold text-white">System status</h2>
+              <span>Health</span>
+            </header>
+            <ul className="space-y-4 text-sm text-slate-300">
               <DashboardSystemStatusList />
             </ul>
-          </div>
+          </section>
         </aside>
       </section>
 
-      <footer className="flex flex-col items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center text-xs text-slate-400 shadow-xl shadow-slate-950/20 backdrop-blur sm:flex-row sm:text-left">
+      <footer className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-center text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:text-left">
         <p>Celery workers, OCR flows, and kiosk tickets all share the same data backbone.</p>
-        <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+        <div className="inline-flex items-center gap-3 rounded-full border border-slate-700 bg-slate-800/80 px-4 py-2 text-xs font-medium text-slate-200">
           <span className="inline-flex h-2 w-2 rounded-full bg-sky-400" aria-hidden />
-          <span className="text-xs uppercase tracking-[0.35em] text-slate-200">Ready</span>
+          Ready
         </div>
       </footer>
     </main>
