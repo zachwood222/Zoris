@@ -23,8 +23,7 @@
    ```
    To load only the lightweight demo dataset used by the health check run
    `docker compose exec api python -m app.api.sample_data` instead of the full
-   seed script.
-4. If your Next.js client runs on a different host, set `CORS_ORIGINS` in `.env`
-   (comma separated) so browsers can call the FastAPI backend. The default allows
-   the local development host plus the hosted dashboard origin mentioned above.
+   seed script. When you're ready to replace the demo records with your own STORIS
+   exports, run `docker compose exec api python -m app.api.scripts.import_spreadsheet path/to/export.xlsx`.
+4. If your Next.js client runs on a different host, set `CORS_ORIGINS` in `.env` (comma separated) so browsers can call the FastAPI backend. The default allows `http://localhost:3000` for local development.
 5. Visit http://localhost:3000 to explore the demo flows. The kiosk page ships with sample inventory and rotating station PIN from `/config`.

@@ -75,7 +75,6 @@ def test_default_cors_origins_cover_local_hosts(monkeypatch: pytest.MonkeyPatch)
     assert "http://localhost:3000" in settings.cors_origins
     assert "http://127.0.0.1:3000" in settings.cors_origins
     assert "http://0.0.0.0:3000" in settings.cors_origins
-    assert "https://zoris-dashboard.onrender.com" in settings.cors_origins
     assert "https://zoris.onrender.com" in settings.cors_origins
 
 

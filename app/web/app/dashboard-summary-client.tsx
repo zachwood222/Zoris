@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import useSWR from 'swr';
 
 import { fallbackDashboardSummary, type DashboardSummaryResponse } from './dashboard-summary-data';
@@ -17,7 +18,7 @@ const fetcher = async (url: string): Promise<DashboardSummaryResponse> => {
   return response.json();
 };
 
-function useDashboardSummary() {
+export function useDashboardSummary() {
   const api = getApiBase();
   return useSWR<DashboardSummaryResponse>(`${api}/dashboard/summary`, fetcher, {
     refreshInterval: 30000,
@@ -31,6 +32,13 @@ export function DashboardMetrics() {
   const summary = data ?? (error ? fallbackDashboardSummary : null);
   const metrics = summary?.metrics ?? [];
   const usingFallback = Boolean(error);
+
+  const metricDestinations: Record<string, string> = {
+    'Open Sales': '/dashboard/analytics#open-sales',
+    'Draft OCR Tickets': '/dashboard/analytics#draft-ocr-tickets',
+    'Inbound Purchase Orders': '/dashboard/analytics#inbound-purchase-orders',
+    'Active Receivers': '/dashboard/analytics#active-receivers'
+  };
 
   if (isLoading) {
     return (
@@ -61,19 +69,28 @@ export function DashboardMetrics() {
           Showing sample metrics while the analytics service reconnects.
         </div>
       )}
-      {metrics.map((metric) => (
-        <div
-          key={metric.label}
-          className="group rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20 transition hover:border-white/30 hover:bg-white/10"
-        >
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-400">{metric.label}</p>
-          <p className="mt-4 text-3xl font-semibold text-white">
-            {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
-          </p>
-          <p className="mt-2 text-xs font-semibold text-emerald-300">{metric.change}</p>
-          <p className="mt-1 text-xs text-slate-400">{metric.status}</p>
-        </div>
-      ))}
+      {metrics.map((metric) => {
+        const href = metricDestinations[metric.label] ?? '/dashboard/analytics';
+        return (
+          <Link
+            key={metric.label}
+            href={href}
+            className="group block rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20 transition hover:border-white/30 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+            aria-label={`View ${metric.label} details`}
+          >
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">{metric.label}</p>
+            <p className="mt-4 text-3xl font-semibold text-white">
+              {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-emerald-300">{metric.change}</p>
+            <p className="mt-1 text-xs text-slate-400">{metric.status}</p>
+            <span className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-sky-300 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+              View dashboard
+              <span aria-hidden>→</span>
+            </span>
+          </Link>
+        );
+      })}
     </>
   );
 }
