@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 
-import { apiBase, buildAuthHeaders } from '../../lib/api';
+import { getApiBase, buildAuthHeaders } from '../../lib/api';
 
 interface DraftSale {
   sale_id: number;
@@ -38,7 +38,7 @@ const fetcher = async (url: string) => {
 };
 
 export default function ReviewPage() {
-  const api = apiBase;
+  const api = useMemo(() => getApiBase(), []);
   const { data, mutate } = useSWR<{ drafts: DraftSale[] }>(`${api}/sales`, fetcher, {
     suspense: false
   });

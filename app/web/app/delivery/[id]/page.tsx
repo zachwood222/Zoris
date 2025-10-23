@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { apiBase, buildAuthHeaders } from '../../../lib/api';
+import { getApiBase, buildAuthHeaders } from '../../../lib/api';
 
 type DeliveryStatus =
   | 'queued'
@@ -36,7 +36,7 @@ interface DeliveryStatusResponse {
 
 export default function DeliveryPage() {
   const { id } = useParams<{ id: string }>();
-  const api = apiBase;
+  const api = useMemo(() => getApiBase(), []);
 
   const [status, setStatus] = useState<DeliveryStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);

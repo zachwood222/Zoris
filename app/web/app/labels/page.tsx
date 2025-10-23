@@ -5,7 +5,7 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from '
 import axios from 'axios';
 import useSWR from 'swr';
 
-import { apiBase, buildAuthHeaders } from '../../lib/api';
+import { getApiBase, buildAuthHeaders } from '../../lib/api';
 
 type LabelTemplate = {
   template_id: string;
@@ -198,7 +198,7 @@ const defaultPurchaseOrders: PurchaseOrder[] = [
 ];
 
 export default function LabelsPage() {
-  const api = apiBase;
+  const api = useMemo(() => getApiBase(), []);
   const { data } = useSWR<LabelTemplate[]>(`${api}/labels/templates`, fetcher, {
     revalidateOnFocus: false
   });

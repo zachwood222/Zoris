@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 
-import { apiBase, buildAuthHeaders } from '../../../lib/api';
+import { getApiBase, buildAuthHeaders } from '../../../lib/api';
 
 const fetcher = async (url: string) => {
   const headers = await buildAuthHeaders();
@@ -19,7 +19,7 @@ interface LabelTemplate {
 }
 
 export default function BatchLabelsPage() {
-  const api = apiBase;
+  const api = useMemo(() => getApiBase(), []);
   const { data } = useSWR<LabelTemplate[]>(`${api}/labels/templates`, fetcher);
   const templates = data ?? [];
 

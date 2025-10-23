@@ -120,7 +120,23 @@ export const resolveDefaultApiBase = (): string => {
   return '/api';
 };
 
-export const apiBase = resolveDefaultApiBase();
+let serverSideApiBase: string | null = null;
+let clientSideApiBase: string | null = null;
+
+export const getApiBase = (): string => {
+  if (typeof window === 'undefined') {
+    if (serverSideApiBase === null) {
+      serverSideApiBase = resolveDefaultApiBase();
+    }
+    return serverSideApiBase;
+  }
+
+  if (clientSideApiBase === null) {
+    clientSideApiBase = resolveDefaultApiBase();
+  }
+
+  return clientSideApiBase;
+};
 
 export const mockAuthHeaders: Record<string, string> = {
   'X-User-Id': 'demo',

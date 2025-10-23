@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-import { apiBase, buildAuthHeaders } from '../../lib/api';
+import { getApiBase, buildAuthHeaders } from '../../lib/api';
 
 interface LookupLine {
   po_id: number;
@@ -45,7 +45,7 @@ export default function ReceivingPage() {
   const [quantity, setQuantity] = useState('1');
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const api = apiBase;
+  const api = getApiBase();
 
   const appendActivity = (entry: ActivityEntry) => {
     setActivity((entries) => [entry, ...entries].slice(0, 25));

@@ -3,7 +3,7 @@
 import useSWR from 'swr';
 
 import { fallbackDashboardSummary, type DashboardSummaryResponse } from './dashboard-summary-data';
-import { apiBase, buildAuthHeaders } from '../lib/api';
+import { getApiBase, buildAuthHeaders } from '../lib/api';
 
 const fallbackNoticeStyles =
   'rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4 text-xs text-amber-100';
@@ -18,7 +18,8 @@ const fetcher = async (url: string): Promise<DashboardSummaryResponse> => {
 };
 
 function useDashboardSummary() {
-  return useSWR<DashboardSummaryResponse>(`${apiBase}/dashboard/summary`, fetcher, {
+  const api = getApiBase();
+  return useSWR<DashboardSummaryResponse>(`${api}/dashboard/summary`, fetcher, {
     refreshInterval: 30000,
     revalidateOnFocus: false,
   });
