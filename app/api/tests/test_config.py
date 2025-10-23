@@ -97,19 +97,3 @@ def test_cors_origins_accepts_json_string(monkeypatch: pytest.MonkeyPatch) -> No
     settings = config.get_settings()
 
     assert settings.cors_origins == ["https://solo.example.com"]
-
-
-def test_cors_origins_accepts_whitespace_delimited(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(
-        "CORS_ORIGINS",
-        "https://app.example.com https://admin.example.com\nhttps://portal.example.com",
-    )
-    _clear_settings_cache()
-
-    settings = config.get_settings()
-
-    assert settings.cors_origins == [
-        "https://app.example.com",
-        "https://admin.example.com",
-        "https://portal.example.com",
-    ]

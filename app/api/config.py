@@ -204,24 +204,21 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             stripped = value.strip()
 
-            if not stripped:
-                return []
+            if stripped:
+                # Support JSON-style configuration such as
+                # ``["https://app.example.com", "https://admin.example.com"]``.
+                try:
+                    parsed = json.loads(stripped)
+                except json.JSONDecodeError:
+                    parsed = None
+                else:
+                    if isinstance(parsed, str):
+                        parsed = [parsed]
+                    if isinstance(parsed, (list, tuple)):
+                        origins = [str(item).strip() for item in parsed if isinstance(item, str)]
+                        return [origin for origin in origins if origin]
 
-            # Support JSON-style configuration such as
-            # ``["https://app.example.com", "https://admin.example.com"]``.
-            try:
-                parsed = json.loads(stripped)
-            except json.JSONDecodeError:
-                parsed = None
-            else:
-                if isinstance(parsed, str):
-                    parsed = [parsed]
-                if isinstance(parsed, (list, tuple)):
-                    origins = [str(item).strip() for item in parsed if isinstance(item, str)]
-                    return [origin for origin in origins if origin]
-
-            tokens = re.split(r"[,\s]+", stripped)
-            origins = [token.strip().strip("\"'") for token in tokens]
+            origins = [origin.strip().strip("\"'") for origin in stripped.split(",")]
             return [origin for origin in origins if origin]
 
         return value
