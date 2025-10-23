@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app.api import config
@@ -73,3 +75,155 @@ def test_default_cors_origins_cover_local_hosts(monkeypatch: pytest.MonkeyPatch)
     assert "http://localhost:3000" in settings.cors_origins
     assert "http://127.0.0.1:3000" in settings.cors_origins
     assert "http://0.0.0.0:3000" in settings.cors_origins
+
+
+def test_cors_origins_accepts_json_array(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "[\"https://app.example.com\", \"https://admin.example.com\"]",
+    )
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://app.example.com",
+        "https://admin.example.com",
+    ]
+
+
+def test_cors_origins_accepts_json_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", '"https://solo.example.com"')
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == ["https://solo.example.com"]
+
+
+def test_cors_origins_accepts_whitespace_delimited(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://app.example.com https://admin.example.com\nhttps://portal.example.com",
+    )
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://app.example.com",
+        "https://admin.example.com",
+        "https://portal.example.com",
+    ]
+
+    _clear_settings_cache()
+
+
+def test_cors_origins_supports_wildcard_entries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com https://app.allowed.com")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == ["https://app.allowed.com"]
+    assert settings.cors_origin_regex == "^(?:https://.*\\.example\\.com)$"
+
+    _clear_settings_cache()
+
+
+def test_cors_origin_regex_merges_with_wildcards(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com")
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", "^https://allowed.example.org$")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == []
+    assert (
+        settings.cors_origin_regex
+        == "^(?:(?:https://allowed.example.org)|(?:https://.*\\.example\\.com))$"
+    )
+
+    _clear_settings_cache()
+
+
+def test_cors_literals_normalize_trailing_slashes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://app.example.com/ https://app.example.com https://admin.example.com/",
+    )
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://app.example.com",
+        "https://admin.example.com",
+    ]
+
+    _clear_settings_cache()
+
+
+def test_cors_literals_normalize_default_ports(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "HTTPS://APP.EXAMPLE.COM:443/ http://api.example.com:80 https://app.example.com:4443",
+    )
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://app.example.com",
+        "http://api.example.com",
+        "https://app.example.com:4443",
+    ]
+
+    _clear_settings_cache()
+
+
+def test_cors_host_fragments_expand_to_regex(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "app.example.com portal.example.com:8443")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == []
+    assert settings.cors_origin_regex is not None
+
+    pattern = re.compile(settings.cors_origin_regex)
+    assert pattern.fullmatch("https://app.example.com")
+    assert pattern.fullmatch("http://app.example.com:8080")
+    assert pattern.fullmatch("https://portal.example.com:8443")
+    assert not pattern.fullmatch("https://portal.example.com:9443")
+
+    _clear_settings_cache()
+
+
+def test_cors_ipv6_host_fragment_support(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "[::1] ::1")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == []
+    assert settings.cors_origin_regex is not None
+
+    pattern = re.compile(settings.cors_origin_regex)
+    assert pattern.fullmatch("http://[::1]:3000")
+    assert pattern.fullmatch("https://[::1]")
+    assert not pattern.fullmatch("https://[::2]")
+
+    _clear_settings_cache()
+
+
+def test_cors_preserves_null_literal(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "null https://app.example.com")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == ["null", "https://app.example.com"]
+    assert settings.cors_origin_regex is None
+
+    _clear_settings_cache()
