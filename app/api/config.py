@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -195,13 +196,32 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: Any) -> Any:
-        """Parse a comma separated string of origins into a list."""
+        """Normalise origin configuration into a list of strings."""
 
         if value is None or value == "":
             return value
 
         if isinstance(value, str):
-            origins = [origin.strip() for origin in value.split(",")]
+            stripped = value.strip()
+
+            if not stripped:
+                return []
+
+            # Support JSON-style configuration such as
+            # ``["https://app.example.com", "https://admin.example.com"]``.
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                parsed = None
+            else:
+                if isinstance(parsed, str):
+                    parsed = [parsed]
+                if isinstance(parsed, (list, tuple)):
+                    origins = [str(item).strip() for item in parsed if isinstance(item, str)]
+                    return [origin for origin in origins if origin]
+
+            tokens = re.split(r"[,\s]+", stripped)
+            origins = [token.strip().strip("\"'") for token in tokens]
             return [origin for origin in origins if origin]
 
         return value
