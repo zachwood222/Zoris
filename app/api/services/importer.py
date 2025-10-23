@@ -11,6 +11,8 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable, Mapping
 
+from fastapi import HTTPException, status
+
 try:  # pragma: no cover - optional dependency
     from openpyxl import load_workbook
 except Exception:  # pragma: no cover - optional dependency
@@ -25,6 +27,8 @@ from ..utils.datetime import utc_now
 
 
 SUPPORTED_ENTITIES = {"vendors", "locations", "items", "inventory", "customers"}
+
+NO_IMPORTABLE_ROWS_DETAIL = "no_importable_rows"
 
 FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
     "vendors": {
@@ -308,7 +312,14 @@ async def import_spreadsheet(
     session: AsyncSession, data: bytes, filename: str
 ) -> ImportResult:
     datasets = extract_datasets(data, filename)
+    has_supported_rows = any(datasets.get(entity) for entity in SUPPORTED_ENTITIES)
+    if not has_supported_rows:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=NO_IMPORTABLE_ROWS_DETAIL
+        )
     counters = ImportCounters()
+
+    imported_records = False
 
     cleared_demo = await _clear_existing_data(session)
 
@@ -330,6 +341,7 @@ async def import_spreadsheet(
         await session.flush()
         vendors[name.lower()] = vendor
         counters.vendors += 1
+        imported_records = True
 
     location_rows = datasets.get("locations", [])
     locations: dict[str, domain.Location] = {}
@@ -343,6 +355,7 @@ async def import_spreadsheet(
         await session.flush()
         locations[name.lower()] = location
         counters.locations += 1
+        imported_records = True
 
     if not locations:
         default_location = domain.Location(name="Main Showroom", type="floor")
@@ -388,6 +401,7 @@ async def import_spreadsheet(
         await session.flush()
         items[sku.lower()] = item
         counters.items += 1
+        imported_records = True
 
         barcode_value = _coerce_str(row.get("barcode"))
         if barcode_value:
@@ -449,6 +463,7 @@ async def import_spreadsheet(
         )
         session.add(inventory)
         counters.inventory_records += 1
+        imported_records = True
 
     customer_rows = datasets.get("customers", [])
     seen_customer_keys: set[str] = set()
@@ -466,6 +481,13 @@ async def import_spreadsheet(
         customer = domain.Customer(name=name or email or phone or "Customer", phone=phone, email=email)
         session.add(customer)
         counters.customers += 1
+
+        imported_records = True
+
+    if not imported_records:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=NO_IMPORTABLE_ROWS_DETAIL
+        )
 
     return ImportResult(counters=counters, cleared_sample_data=cleared_demo, imported_at=utc_now())
 

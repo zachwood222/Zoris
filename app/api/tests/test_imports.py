@@ -173,3 +173,32 @@ async def test_import_replaces_existing_records(client) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
+
+@pytest.mark.asyncio
+async def test_import_rejects_when_no_supported_rows(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await sample_data.apply()
+
+    csv_content = """entity,name,terms,phone,email,sku,description,short_code,price,qty_on_hand,location_name\n"""
+    csv_content += "vendorrs,Acme Supply,Net 30,555-1000,vendor@example.com,,,,,,\n"
+    csv_content += "locatoins,Main Showroom,floor,,,,,,,\n"
+
+    files = {"file": ("bad.csv", io.BytesIO(csv_content.encode("utf-8")), "text/csv")}
+
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 400
+
+    payload = response.json()
+    assert payload["detail"] == "no_importable_rows"
+
+    async with SessionLocal() as session:
+        demo_item = await session.scalar(select(Item).where(Item.sku == "DEMO-SOFA"))
+        assert demo_item is not None
+        demo_vendor = await session.scalar(select(Vendor).where(Vendor.name == "Demo Furnishings"))
+        assert demo_vendor is not None
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
