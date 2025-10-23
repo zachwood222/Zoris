@@ -5,9 +5,37 @@ import json
 import re
 from functools import lru_cache
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _normalise_origin(value: str) -> str:
+    """Return a canonical origin string for CORS configuration."""
+
+    trimmed = value.strip().strip("\"'")
+    if not trimmed:
+        return ""
+
+    if trimmed == "*":
+        return "*"
+
+    normalised = trimmed.rstrip("/")
+
+    try:
+        parsed = urlsplit(normalised)
+    except ValueError:
+        return normalised
+
+    if parsed.scheme and parsed.hostname:
+        scheme = parsed.scheme.lower()
+        hostname = parsed.hostname.lower()
+        if parsed.port:
+            hostname = f"{hostname}:{parsed.port}"
+        return f"{scheme}://{hostname}"
+
+    return normalised
 
 
 class Settings(BaseSettings):
@@ -209,24 +237,25 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             stripped = value.strip()
 
-            if not stripped:
-                return []
+            if stripped:
+                # Support JSON-style configuration such as
+                # ``["https://app.example.com", "https://admin.example.com"]``.
+                try:
+                    parsed = json.loads(stripped)
+                except json.JSONDecodeError:
+                    parsed = None
+                else:
+                    if isinstance(parsed, str):
+                        parsed = [parsed]
+                    if isinstance(parsed, (list, tuple)):
+                        origins = [
+                            _normalise_origin(str(item))
+                            for item in parsed
+                            if isinstance(item, str)
+                        ]
+                        return [origin for origin in origins if origin]
 
-            # Support JSON-style configuration such as
-            # ``["https://app.example.com", "https://admin.example.com"]``.
-            try:
-                parsed = json.loads(stripped)
-            except json.JSONDecodeError:
-                parsed = None
-            else:
-                if isinstance(parsed, str):
-                    parsed = [parsed]
-                if isinstance(parsed, (list, tuple)):
-                    origins = [str(item).strip() for item in parsed if isinstance(item, str)]
-                    return [origin for origin in origins if origin]
-
-            tokens = re.split(r"[,\s]+", stripped)
-            origins = [token.strip().strip("\"'") for token in tokens]
+            origins = [_normalise_origin(part) for part in stripped.split(",")]
             return [origin for origin in origins if origin]
 
         return value

@@ -109,7 +109,6 @@ def log_startup_settings(settings: Any, *, logger: logging.Logger | None = None)
         "log_requests": data.get("log_requests"),
         "sqlalchemy_echo": data.get("sqlalchemy_echo"),
         "cors_origins": data.get("cors_origins"),
-        "cors_origin_regex": data.get("cors_origin_regex"),
         "database_url": sanitize_connection_url(data.get("database_url")),
         "redis_url": sanitize_connection_url(data.get("redis_url")),
         "auth_provider": data.get("auth_provider"),

@@ -99,11 +99,8 @@ def test_cors_origins_accepts_json_string(monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.cors_origins == ["https://solo.example.com"]
 
 
-def test_cors_origins_accepts_whitespace_delimited(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(
-        "CORS_ORIGINS",
-        "https://app.example.com https://admin.example.com\nhttps://portal.example.com",
-    )
+def test_cors_origins_strip_trailing_slashes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://app.example.com/ , https://api.example.com///")
     _clear_settings_cache()
 
     settings = config.get_settings()
@@ -132,6 +129,15 @@ def test_cors_origins_supports_wildcard_entries(monkeypatch: pytest.MonkeyPatch)
 def test_cors_origin_regex_merges_with_wildcards(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com")
     monkeypatch.setenv("CORS_ORIGIN_REGEX", "^https://allowed.example.org$")
+        "https://api.example.com",
+    ]
+
+
+def test_cors_origins_normalize_paths_and_case(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://Admin.EXAMPLE.com:8443/dashboard, https://app.example.com/base/path",
+    )
     _clear_settings_cache()
 
     settings = config.get_settings()
@@ -143,3 +149,7 @@ def test_cors_origin_regex_merges_with_wildcards(monkeypatch: pytest.MonkeyPatch
     )
 
     _clear_settings_cache()
+    assert settings.cors_origins == [
+        "https://admin.example.com:8443",
+        "https://app.example.com",
+    ]
