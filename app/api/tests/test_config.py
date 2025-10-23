@@ -97,3 +97,30 @@ def test_cors_origins_accepts_json_string(monkeypatch: pytest.MonkeyPatch) -> No
     settings = config.get_settings()
 
     assert settings.cors_origins == ["https://solo.example.com"]
+
+
+def test_cors_origins_strip_trailing_slashes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://app.example.com/ , https://api.example.com///")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://app.example.com",
+        "https://api.example.com",
+    ]
+
+
+def test_cors_origins_normalize_paths_and_case(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://Admin.EXAMPLE.com:8443/dashboard, https://app.example.com/base/path",
+    )
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://admin.example.com:8443",
+        "https://app.example.com",
+    ]

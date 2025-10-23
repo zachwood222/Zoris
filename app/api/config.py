@@ -5,9 +5,37 @@ import json
 import re
 from functools import lru_cache
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _normalise_origin(value: str) -> str:
+    """Return a canonical origin string for CORS configuration."""
+
+    trimmed = value.strip().strip("\"'")
+    if not trimmed:
+        return ""
+
+    if trimmed == "*":
+        return "*"
+
+    normalised = trimmed.rstrip("/")
+
+    try:
+        parsed = urlsplit(normalised)
+    except ValueError:
+        return normalised
+
+    if parsed.scheme and parsed.hostname:
+        scheme = parsed.scheme.lower()
+        hostname = parsed.hostname.lower()
+        if parsed.port:
+            hostname = f"{hostname}:{parsed.port}"
+        return f"{scheme}://{hostname}"
+
+    return normalised
 
 
 class Settings(BaseSettings):
@@ -215,10 +243,14 @@ class Settings(BaseSettings):
                     if isinstance(parsed, str):
                         parsed = [parsed]
                     if isinstance(parsed, (list, tuple)):
-                        origins = [str(item).strip() for item in parsed if isinstance(item, str)]
+                        origins = [
+                            _normalise_origin(str(item))
+                            for item in parsed
+                            if isinstance(item, str)
+                        ]
                         return [origin for origin in origins if origin]
 
-            origins = [origin.strip().strip("\"'") for origin in stripped.split(",")]
+            origins = [_normalise_origin(part) for part in stripped.split(",")]
             return [origin for origin in origins if origin]
 
         return value
