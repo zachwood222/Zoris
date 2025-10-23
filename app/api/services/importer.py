@@ -7,7 +7,7 @@ import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable, Mapping
 
@@ -26,7 +26,16 @@ from ..models.base import Base
 from ..utils.datetime import utc_now
 
 
-SUPPORTED_ENTITIES = {"vendors", "locations", "items", "inventory", "customers"}
+SUPPORTED_ENTITIES = {
+    "vendors",
+    "locations",
+    "items",
+    "inventory",
+    "customers",
+    "sales",
+    "purchase_orders",
+    "receivings",
+}
 
 NO_IMPORTABLE_ROWS_DETAIL = "no_importable_rows"
 
@@ -65,6 +74,42 @@ FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
         "name": {"name", "customer_name"},
         "phone": {"phone", "customer_phone"},
         "email": {"email", "customer_email"},
+    },
+    "sales": {
+        "external_ref": {"external_ref", "sale_number", "ticket_number", "sale_no", "ticket_id"},
+        "customer_email": {"customer_email", "email"},
+        "customer_name": {"customer_name", "name"},
+        "customer_phone": {"customer_phone", "phone"},
+        "status": {"status"},
+        "subtotal": {"subtotal"},
+        "tax": {"tax"},
+        "total": {"total", "grand_total"},
+        "deposit_amt": {"deposit_amt", "deposit"},
+        "sale_date": {"sale_date", "date"},
+        "created_at": {"created_at", "created_on"},
+        "created_by": {"created_by", "sales_rep", "owner"},
+        "source": {"source", "channel"},
+        "delivery_requested": {"delivery_requested", "delivery"},
+        "delivery_status": {"delivery_status"},
+        "notes": {"notes"},
+    },
+    "purchase_orders": {
+        "external_ref": {"external_ref", "po_number", "po_no", "reference"},
+        "vendor_name": {"vendor_name", "vendor"},
+        "status": {"status"},
+        "expected_date": {"expected_date", "eta", "due_date"},
+        "created_at": {"created_at", "created_on"},
+        "created_by": {"created_by", "buyer"},
+        "terms": {"terms"},
+        "notes": {"notes"},
+    },
+    "receivings": {
+        "external_ref": {"external_ref", "receipt_number", "receiving_number"},
+        "po_ref": {"po_ref", "po_number", "po_external_ref"},
+        "received_at": {"received_at", "received_on"},
+        "created_at": {"created_at", "created_on"},
+        "received_by": {"received_by", "receiver"},
+        "doc_url": {"doc_url", "document_url"},
     },
 }
 
@@ -111,6 +156,119 @@ def _coerce_object(value: Any) -> dict | None:
             return None
         return parsed if isinstance(parsed, dict) else None
     return None
+
+
+def _normalise_phone(value: str | None) -> str | None:
+    if not value:
+        return None
+    digits = re.sub(r"[^0-9]", "", value)
+    return digits or None
+
+
+def _coerce_bool(value: Any) -> bool | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"y", "yes", "true", "1", "t"}:
+            return True
+        if text in {"n", "no", "false", "0", "f"}:
+            return False
+    return None
+
+
+def _coerce_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        candidate = text.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError:
+            parsed = None
+        if parsed is None:
+            for fmt in (
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M",
+                "%Y-%m-%d",
+                "%m/%d/%Y %H:%M:%S",
+                "%m/%d/%Y %H:%M",
+                "%m/%d/%Y",
+            ):
+                try:
+                    parsed = datetime.strptime(text, fmt)
+                    break
+                except ValueError:
+                    continue
+        if parsed is None:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    return None
+
+
+def _clean_sale_status(value: Any) -> str:
+    candidate = (_coerce_str(value) or "open").lower()
+    mapping = {
+        "closed": "fulfilled",
+        "complete": "fulfilled",
+        "completed": "fulfilled",
+        "invoiced": "fulfilled",
+        "pending": "open",
+    }
+    candidate = mapping.get(candidate, candidate)
+    allowed = {"draft", "open", "fulfilled", "void"}
+    if candidate not in allowed:
+        return "open"
+    return candidate
+
+
+def _clean_po_status(value: Any) -> str:
+    candidate = (_coerce_str(value) or "open").lower()
+    mapping = {
+        "partial": "partial",
+        "receiving": "partial",
+        "received": "received",
+        "closed": "closed",
+        "complete": "closed",
+    }
+    candidate = mapping.get(candidate, candidate)
+    allowed = {"draft", "open", "partial", "received", "closed"}
+    if candidate not in allowed:
+        return "open"
+    return candidate
+
+
+def _clean_delivery_status(value: Any) -> str | None:
+    candidate = _coerce_str(value)
+    if not candidate:
+        return None
+    candidate = candidate.lower()
+    mapping = {
+        "in_transit": "out_for_delivery",
+        "out": "out_for_delivery",
+        "complete": "delivered",
+        "completed": "delivered",
+    }
+    candidate = mapping.get(candidate, candidate)
+    allowed = {"queued", "scheduled", "out_for_delivery", "delivered", "failed"}
+    if candidate not in allowed:
+        return None
+    return candidate
 
 
 def _dedupe_preserve_order(values: Iterable[str]) -> list[str]:
@@ -251,6 +409,9 @@ class ImportCounters:
     barcodes: int = 0
     inventory_records: int = 0
     customers: int = 0
+    sales: int = 0
+    purchase_orders: int = 0
+    receivings: int = 0
     warnings: list[str] = field(default_factory=list)
 
 
@@ -466,7 +627,21 @@ async def import_spreadsheet(
         imported_records = True
 
     customer_rows = datasets.get("customers", [])
+    customers: dict[str, domain.Customer] = {}
     seen_customer_keys: set[str] = set()
+
+    def _customer_lookup_keys(name: str | None, email: str | None, phone: str | None) -> list[str]:
+        keys: list[str] = []
+        if email:
+            keys.append(f"email::{email.lower()}")
+        if phone:
+            normalised_phone = _normalise_phone(phone)
+            if normalised_phone:
+                keys.append(f"phone::{normalised_phone}")
+        if name:
+            keys.append(f"name::{name.lower()}")
+        return keys
+
     for row in customer_rows:
         name = _coerce_str(row.get("name"))
         email = _coerce_str(row.get("email"))
@@ -478,10 +653,202 @@ async def import_spreadsheet(
         if dedupe_key in seen_customer_keys:
             continue
         seen_customer_keys.add(dedupe_key)
-        customer = domain.Customer(name=name or email or phone or "Customer", phone=phone, email=email)
+        customer = domain.Customer(
+            name=name or email or phone or "Customer",
+            phone=phone,
+            email=email,
+        )
         session.add(customer)
+        await session.flush()
         counters.customers += 1
+        imported_records = True
+        for key in _customer_lookup_keys(customer.name, customer.email, customer.phone):
+            customers[key] = customer
 
+    async def ensure_customer(row: Mapping[str, Any]) -> domain.Customer | None:
+        nonlocal imported_records
+        name = _coerce_str(row.get("customer_name")) or _coerce_str(row.get("name"))
+        email = _coerce_str(row.get("customer_email"))
+        phone = _coerce_str(row.get("customer_phone"))
+        for key in _customer_lookup_keys(name, email, phone):
+            customer = customers.get(key)
+            if customer is not None:
+                return customer
+        if not any([name, email, phone]):
+            return None
+        customer = domain.Customer(
+            name=name or email or phone or "Customer",
+            email=email,
+            phone=phone,
+        )
+        session.add(customer)
+        await session.flush()
+        counters.customers += 1
+        imported_records = True
+        for key in _customer_lookup_keys(customer.name, customer.email, customer.phone):
+            customers[key] = customer
+        return customer
+
+    sales_rows = datasets.get("sales", [])
+    sales_index: dict[str, domain.Sale] = {}
+    for row in sales_rows:
+        customer = await ensure_customer(row)
+        sale_status = _clean_sale_status(row.get("status"))
+        external_ref = _coerce_str(row.get("external_ref"))
+        sale_date = _coerce_datetime(row.get("sale_date")) or utc_now()
+        created_at = _coerce_datetime(row.get("created_at")) or sale_date
+        subtotal = _coerce_decimal(row.get("subtotal"))
+        tax = _coerce_decimal(row.get("tax"))
+        total = _coerce_decimal(row.get("total"))
+        deposit = _coerce_decimal(row.get("deposit_amt")) or Decimal("0")
+        if subtotal is None and total is not None and tax is not None:
+            subtotal = total - tax
+        if tax is None and subtotal is not None and total is not None:
+            tax = total - subtotal
+        if subtotal is None:
+            subtotal = total or Decimal("0")
+        if total is None:
+            total = subtotal + (tax or Decimal("0"))
+        if tax is None:
+            tax = Decimal("0")
+        source_value = _coerce_str(row.get("source")) or "imported_spreadsheet"
+        source = "ocr_ticket" if source_value and "ocr" in source_value.lower() else source_value
+        created_by = _coerce_str(row.get("created_by")) or "import.spreadsheet"
+        delivery_requested = _coerce_bool(row.get("delivery_requested")) or False
+        delivery_status = _clean_delivery_status(row.get("delivery_status"))
+        sale = domain.Sale(
+            customer_id=customer.customer_id if customer else None,
+            status=sale_status,
+            sale_date=sale_date,
+            subtotal=subtotal,
+            tax=tax,
+            total=total,
+            deposit_amt=deposit,
+            created_by=created_by,
+            source=source,
+            external_ref=external_ref,
+            delivery_requested=delivery_requested,
+            delivery_status=delivery_status,
+        )
+        sale.created_at = created_at
+        session.add(sale)
+        await session.flush()
+        counters.sales += 1
+        imported_records = True
+        sales_index[str(sale.sale_id)] = sale
+        sales_index[str(sale.sale_id).lower()] = sale
+        if external_ref:
+            sales_index[external_ref] = sale
+            sales_index[external_ref.lower()] = sale
+
+    po_rows = datasets.get("purchase_orders", [])
+    purchase_orders_index: dict[str, domain.PurchaseOrder] = {}
+    for row in po_rows:
+        vendor_name = _coerce_str(row.get("vendor_name"))
+        vendor = vendors.get(vendor_name.lower()) if vendor_name else None
+        if vendor is None:
+            name_candidate = vendor_name or "Imported Vendor"
+            base_name = name_candidate
+            suffix = 1
+            while name_candidate.lower() in vendors:
+                suffix += 1
+                name_candidate = f"{base_name} {suffix}"
+            vendor = domain.Vendor(
+                name=name_candidate,
+                terms=_coerce_str(row.get("terms")),
+                phone=None,
+                email=None,
+                address_json=None,
+            )
+            session.add(vendor)
+            await session.flush()
+            vendors[name_candidate.lower()] = vendor
+            counters.vendors += 1
+            imported_records = True
+        po_status = _clean_po_status(row.get("status"))
+        expected_date = _coerce_datetime(row.get("expected_date"))
+        created_at = _coerce_datetime(row.get("created_at")) or utc_now()
+        created_by = _coerce_str(row.get("created_by")) or "import.spreadsheet"
+        notes = _coerce_str(row.get("notes"))
+        external_ref = _coerce_str(row.get("external_ref"))
+        po = domain.PurchaseOrder(
+            vendor_id=vendor.vendor_id,
+            status=po_status,
+            expected_date=expected_date,
+            terms=_coerce_str(row.get("terms")) or vendor.terms,
+            notes=notes,
+            created_by=created_by,
+            external_ref=external_ref,
+        )
+        po.created_at = created_at
+        session.add(po)
+        await session.flush()
+        counters.purchase_orders += 1
+        imported_records = True
+        for key in {str(po.po_id), str(po.po_id).lower()}:
+            purchase_orders_index[key] = po
+        if external_ref:
+            purchase_orders_index[external_ref] = po
+            purchase_orders_index[external_ref.lower()] = po
+
+    receiving_rows = datasets.get("receivings", [])
+    for row in receiving_rows:
+        po_ref_candidates = [
+            _coerce_str(row.get("po_ref")),
+            _coerce_str(row.get("external_ref")),
+        ]
+        po: domain.PurchaseOrder | None = None
+        for candidate in filter(None, po_ref_candidates):
+            lower_candidate = candidate.lower()
+            po = purchase_orders_index.get(lower_candidate) or purchase_orders_index.get(candidate)
+            if po is not None:
+                break
+        if po is None:
+            vendor = next(iter(vendors.values()), None)
+            if vendor is None:
+                vendor = domain.Vendor(name="Imported Vendor", terms=None, phone=None, email=None, address_json=None)
+                session.add(vendor)
+                await session.flush()
+                vendors[vendor.name.lower()] = vendor
+                counters.vendors += 1
+                imported_records = True
+            placeholder_ref = next((candidate for candidate in po_ref_candidates if candidate), None)
+            po = domain.PurchaseOrder(
+                vendor_id=vendor.vendor_id,
+                status="open",
+                expected_date=_coerce_datetime(row.get("received_at")) or utc_now(),
+                terms=vendor.terms,
+                notes="Created automatically for receiving import",
+                created_by="import.spreadsheet",
+                external_ref=placeholder_ref,
+            )
+            po.created_at = _coerce_datetime(row.get("created_at")) or (po.expected_date or utc_now())
+            session.add(po)
+            await session.flush()
+            counters.purchase_orders += 1
+            imported_records = True
+            for key in {str(po.po_id), str(po.po_id).lower()}:
+                purchase_orders_index[key] = po
+            if po.external_ref:
+                purchase_orders_index[po.external_ref] = po
+                purchase_orders_index[po.external_ref.lower()] = po
+
+        received_at = _coerce_datetime(row.get("received_at")) or utc_now()
+        created_at = _coerce_datetime(row.get("created_at")) or received_at
+        received_by = _coerce_str(row.get("received_by")) or "Receiving"
+        doc_url = _coerce_str(row.get("doc_url"))
+        external_ref = _coerce_str(row.get("external_ref"))
+        receiving = domain.Receiving(
+            po_id=po.po_id,
+            received_at=received_at,
+            received_by=received_by,
+            doc_url=doc_url,
+            external_ref=external_ref,
+        )
+        receiving.created_at = created_at
+        session.add(receiving)
+        await session.flush()
+        counters.receivings += 1
         imported_records = True
 
     if not imported_records:

@@ -53,6 +53,16 @@ The `/health` endpoint now verifies database connectivity, attempts a Redis
 successful response includes component flags plus a `sample_data` summary that
 lists how many demo vendors, items, customers, and sales are present.
 
+To replace the demo fixtures with real operational data, use the importer CLI:
+
+```bash
+python -m app.api.scripts.import_spreadsheet path/to/your_export.xlsx
+```
+
+The command uses the same cleaning pipeline as the dashboard upload form,
+removes any remaining demo data, and prints a summary of what changed. Add
+`--dry-run` to preview the import without committing changes.
+
 ## Configuring Celery connectivity
 
 Celery relies on Redis for both its broker and result backend. When deploying to

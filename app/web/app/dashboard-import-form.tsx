@@ -31,6 +31,15 @@ const formatSummary = (summary: ImportSummary): string[] => {
   if (summary.counters.customers) {
     details.push(`${summary.counters.customers} customer(s)`);
   }
+  if (summary.counters.sales) {
+    details.push(`${summary.counters.sales} sale(s)`);
+  }
+  if (summary.counters.purchaseOrders) {
+    details.push(`${summary.counters.purchaseOrders} purchase order(s)`);
+  }
+  if (summary.counters.receivings) {
+    details.push(`${summary.counters.receivings} receiving event(s)`);
+  }
 
   if (details.length > 0) {
     lines.push(`Updated: ${details.join(', ')}`);

@@ -181,6 +181,7 @@ class PurchaseOrder(Base, TimestampMixin):
     terms: Mapped[Optional[str]]
     notes: Mapped[Optional[str]]
     created_by: Mapped[str]
+    external_ref: Mapped[Optional[str]] = mapped_column(String(100))
 
     vendor: Mapped[Vendor] = relationship(back_populates="purchase_orders")
     lines: Mapped[list["POLine"]] = relationship(back_populates="po", cascade="all, delete-orphan")
@@ -214,6 +215,7 @@ class Receiving(Base, TimestampMixin):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     received_by: Mapped[str]
     doc_url: Mapped[Optional[str]]
+    external_ref: Mapped[Optional[str]] = mapped_column(String(100))
 
     po: Mapped[PurchaseOrder] = relationship(back_populates="receivings")
     lines: Mapped[list["ReceivingLine"]] = relationship(back_populates="receiving", cascade="all, delete-orphan")
@@ -256,6 +258,7 @@ class Sale(Base, TimestampMixin):
     deposit_amt: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     created_by: Mapped[Optional[str]]
     source: Mapped[Optional[str]]
+    external_ref: Mapped[Optional[str]] = mapped_column(String(100))
     ocr_confidence: Mapped[Optional[float]] = mapped_column(Numeric(5, 4))
     ocr_payload: Mapped[Optional[dict]] = mapped_column(JSON)
     delivery_requested: Mapped[bool] = mapped_column(Boolean, default=False)
