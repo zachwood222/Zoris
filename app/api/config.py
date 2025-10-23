@@ -150,6 +150,11 @@ class Settings(BaseSettings):
             "description": "Comma-separated list of allowed CORS origins for the API.",
         },
     )
+    cors_origin_regex: str | None = Field(
+        default=None,
+        alias="CORS_ORIGIN_REGEX",
+        description="Optional regular expression used to match allowed CORS origins.",
+    )
     auth_provider: Literal["mock", "shared_secret", "jwks"] = Field(
         default="mock",
         alias="AUTH_PROVIDER",
@@ -254,6 +259,71 @@ class Settings(BaseSettings):
             return [origin for origin in origins if origin]
 
         return value
+
+    @staticmethod
+    def _dedupe_preserve_order(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for value in values:
+            if value not in seen:
+                seen.add(value)
+                deduped.append(value)
+        return deduped
+
+    @staticmethod
+    def _origin_to_pattern(origin: str) -> str | None:
+        cleaned = origin.strip()
+        if not cleaned:
+            return None
+        if cleaned.startswith("regex:"):
+            pattern = cleaned.split(":", 1)[1].strip()
+            return pattern or None
+        if "*" in cleaned:
+            escaped = re.escape(cleaned)
+            return escaped.replace(r"\*", ".*")
+        return None
+
+    @model_validator(mode="after")
+    def _finalize_cors_configuration(self) -> "Settings":
+        """Split literal origins from wildcard/regex values for CORSMiddleware."""
+
+        raw_origins = self.cors_origins or []
+        literal_origins: list[str] = []
+        pattern_sources: list[str] = []
+
+        if self.cors_origin_regex:
+            pattern_sources.append(self.cors_origin_regex)
+
+        for origin in raw_origins:
+            if origin is None:
+                continue
+            origin_str = str(origin).strip()
+            if not origin_str:
+                continue
+            pattern = self._origin_to_pattern(origin_str)
+            if pattern:
+                pattern_sources.append(pattern)
+            else:
+                literal_origins.append(origin_str)
+
+        literal_origins = self._dedupe_preserve_order(literal_origins)
+        self.cors_origins = literal_origins
+
+        if pattern_sources:
+            deduped_patterns = self._dedupe_preserve_order(
+                [pattern.strip() for pattern in pattern_sources if pattern and pattern.strip()]
+            )
+            if deduped_patterns:
+                combined = "|".join(
+                    f"(?:{pattern.strip('^$')})" for pattern in deduped_patterns if pattern.strip('^$')
+                )
+                self.cors_origin_regex = f"^(?:{combined})$" if combined else None
+            else:
+                self.cors_origin_regex = None
+        else:
+            self.cors_origin_regex = None
+
+        return self
 
     @field_validator(
         "auth_algorithms",

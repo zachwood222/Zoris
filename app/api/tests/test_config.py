@@ -107,6 +107,28 @@ def test_cors_origins_strip_trailing_slashes(monkeypatch: pytest.MonkeyPatch) ->
 
     assert settings.cors_origins == [
         "https://app.example.com",
+        "https://admin.example.com",
+        "https://portal.example.com",
+    ]
+
+    _clear_settings_cache()
+
+
+def test_cors_origins_supports_wildcard_entries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com https://app.allowed.com")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == ["https://app.allowed.com"]
+    assert settings.cors_origin_regex == "^(?:https://.*\\.example\\.com)$"
+
+    _clear_settings_cache()
+
+
+def test_cors_origin_regex_merges_with_wildcards(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com")
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", "^https://allowed.example.org$")
         "https://api.example.com",
     ]
 
@@ -120,6 +142,13 @@ def test_cors_origins_normalize_paths_and_case(monkeypatch: pytest.MonkeyPatch) 
 
     settings = config.get_settings()
 
+    assert settings.cors_origins == []
+    assert (
+        settings.cors_origin_regex
+        == "^(?:(?:https://allowed.example.org)|(?:https://.*\\.example\\.com))$"
+    )
+
+    _clear_settings_cache()
     assert settings.cors_origins == [
         "https://admin.example.com:8443",
         "https://app.example.com",
