@@ -14,15 +14,20 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
-def _ensure_async_driver(database_url: str) -> str:
+def _ensure_async_driver(database_url: str, *, require_tls: bool = False) -> str:
     """Return a URL that uses an async driver suitable for ``create_async_engine``."""
 
     url = make_url(database_url)
     drivername = url.drivername
 
     dialect, _, driver = drivername.partition("+")
-    if dialect in {"postgresql", "postgres"} and driver != "psycopg_async":
-        url = url.set(drivername="postgresql+psycopg_async")
+    if dialect in {"postgresql", "postgres"}:
+        if driver != "psycopg_async":
+            url = url.set(drivername="postgresql+psycopg_async")
+        if require_tls:
+            query = dict(url.query)
+            query.setdefault("sslmode", "require")
+            url = url.set(query=query)
     elif dialect == "sqlite" and driver != "aiosqlite":
         url = url.set(drivername="sqlite+aiosqlite")
 
@@ -30,7 +35,12 @@ def _ensure_async_driver(database_url: str) -> str:
 
 
 engine = create_async_engine(
-    _ensure_async_driver(settings.database_url), echo=settings.sqlalchemy_echo, future=True
+    _ensure_async_driver(
+        settings.database_url,
+        require_tls=settings.database_require_tls,
+    ),
+    echo=settings.sqlalchemy_echo,
+    future=True,
 )
 logger.debug(
     "Configured async engine", extra={"database_url": sanitize_connection_url(settings.database_url)}
