@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 
 def _normalise_origin(value: str) -> str:
@@ -377,6 +378,27 @@ class Settings(BaseSettings):
                 self.cors_origin_regex = f"^(?:{combined})$"
         else:
             self.cors_origin_regex = None
+
+        return self
+
+    @model_validator(mode="after")
+    def _default_database_tls(self) -> "Settings":
+        """Set a secure default for ``database_require_tls`` when unspecified."""
+
+        if "database_require_tls" in self.model_fields_set:
+            return self
+
+        try:
+            url = make_url(self.database_url)
+        except Exception:  # pragma: no cover - defensive
+            self.database_require_tls = False
+            return self
+
+        drivername = url.drivername.partition("+")[0]
+        if drivername in {"postgresql", "postgres"} and self.environment != "local":
+            self.database_require_tls = True
+        else:
+            self.database_require_tls = False
 
         return self
 
