@@ -29,6 +29,43 @@ async def test_spreadsheet_import(client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_import_generates_unique_short_codes(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    csv_content = """entity,name,terms,phone,email,sku,description,short_code,price,qty_on_hand,location_name\n"""
+    csv_content += "vendors,Acme Supply,Net 30,555-1000,vendor@example.com,,,,,,\n"
+    csv_content += "locations,Main Showroom,floor,,,,,,,\n"
+    csv_content += "items,,,,,SKU-1000,Modern Sofa,,899.00,4,Main Showroom\n"
+    csv_content += "items,,,,,SKU 1000B,Modern Sofa Variant,,999.00,2,Main Showroom\n"
+
+    files = {"file": ("dupe_short_codes.csv", io.BytesIO(csv_content.encode("utf-8")), "text/csv")}
+
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["counters"]["items"] == 2
+
+    async with SessionLocal() as session:
+        short_codes = set((await session.scalars(select(Item.short_code))).all())
+        assert len(short_codes) == 2
+        assert all(len(code) == 4 for code in short_codes)
+
+
+@pytest.mark.asyncio
+async def test_import_rejects_unsupported_file_types(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    files = {"file": ("data.txt", io.BytesIO(b"not-a-spreadsheet"), "text/plain")}
+
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 400
+    assert "Unsupported file type" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_spreadsheet_import_xlsx_cleaning(client) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

@@ -289,24 +289,72 @@ def _resolve_field(entity: str, key: str) -> str | None:
     return None
 
 
-def _derive_short_code(row: Mapping[str, Any]) -> str | None:
-    def _clean(value: str | None) -> str | None:
-        if not value:
-            return None
-        alphanumeric = re.sub(r"[^A-Za-z0-9]", "", value)
-        if not alphanumeric:
-            return None
-        return alphanumeric[:4].upper()
+_BASE36_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+
+def _base36(value: int, width: int) -> str:
+    digits: list[str] = []
+    candidate = value
+    while candidate:
+        candidate, remainder = divmod(candidate, 36)
+        digits.append(_BASE36_ALPHABET[remainder])
+    while len(digits) < width:
+        digits.append("0")
+    return "".join(reversed(digits))[:width]
+
+
+def _allocate_short_code(base: str, existing: set[str]) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9]", "", base).upper()
+    if not sanitized:
+        sanitized = "ITEM"
+
+    trimmed = sanitized[:4]
+    if len(trimmed) < 4:
+        trimmed = trimmed.ljust(4, "X")
+
+    if trimmed not in existing:
+        existing.add(trimmed)
+        return trimmed
+
+    prefix = trimmed[:3] if len(trimmed) >= 3 else trimmed.ljust(3, "X")
+    for suffix in range(1, 36):
+        candidate = prefix + _BASE36_ALPHABET[suffix]
+        if candidate not in existing:
+            existing.add(candidate)
+            return candidate
+
+    prefix = trimmed[:2] if len(trimmed) >= 2 else trimmed.ljust(2, "X")
+    for suffix in range(36 ** 2):
+        candidate = prefix + _base36(suffix, 2)
+        if candidate not in existing:
+            existing.add(candidate)
+            return candidate
+
+    prefix = trimmed[:1] if trimmed else "X"
+    for suffix in range(36 ** 3):
+        candidate = prefix + _base36(suffix, 3)
+        if candidate not in existing:
+            existing.add(candidate)
+            return candidate
+
+    raise ValueError("Unable to allocate a unique short code")
+
+
+def _derive_short_code(row: Mapping[str, Any], existing: set[str]) -> str | None:
     sources = (
         _coerce_str(row.get("short_code")),
         _coerce_str(row.get("sku")),
         _coerce_str(row.get("description")),
     )
     for candidate in sources:
-        cleaned = _clean(candidate)
-        if cleaned:
-            return cleaned
+        if candidate:
+            short_code = _allocate_short_code(candidate, existing)
+            if short_code:
+                return short_code
+
+    combined = "".join(filter(None, (_coerce_str(row.get("sku")), _coerce_str(row.get("description")))))
+    if combined:
+        return _allocate_short_code(combined, existing)
     return None
 
 
@@ -472,7 +520,10 @@ def _clean_location_type(value: Any) -> str:
 async def import_spreadsheet(
     session: AsyncSession, data: bytes, filename: str
 ) -> ImportResult:
-    datasets = extract_datasets(data, filename)
+    try:
+        datasets = extract_datasets(data, filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     has_supported_rows = any(datasets.get(entity) for entity in SUPPORTED_ENTITIES)
     if not has_supported_rows:
         raise HTTPException(
@@ -527,6 +578,7 @@ async def import_spreadsheet(
 
     item_rows = datasets.get("items", [])
     items: dict[str, domain.Item] = {}
+    short_codes_in_use: set[str] = set()
     item_qty_defaults: list[tuple[str, Decimal | None, str | None]] = []
     for row in item_rows:
         sku = _coerce_str(row.get("sku"))
@@ -535,7 +587,7 @@ async def import_spreadsheet(
             counters.warnings.append(f"Skipped item because of missing required fields (sku={sku})")
             continue
 
-        short_code = _derive_short_code(row)
+        short_code = _derive_short_code(row, short_codes_in_use)
         if not short_code:
             counters.warnings.append(
                 f"Skipped item because of missing short code (derived from sku={sku})"
