@@ -25,8 +25,8 @@ export default function ImportSpreadsheetPage(): JSX.Element {
             </span>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">Import operational data</h1>
             <p className="max-w-2xl text-sm text-slate-300 sm:text-base">
-              Upload a CSV or XLSX spreadsheet to cleanse vendor, location, item, inventory, and customer data before it
-              lands in the live database.
+              Upload an XLSX workbook with <strong>Products</strong>, <strong>Customers</strong>, <strong>Orders</strong>, and{' '}
+              <strong>Purchase Orders</strong> sheets to cleanse data before it lands in the live database.
             </p>
           </div>
         </div>
@@ -38,7 +38,8 @@ export default function ImportSpreadsheetPage(): JSX.Element {
             <h2 className="text-xl font-semibold text-white">Import spreadsheet</h2>
             <p className="text-sm text-slate-300">
               We automatically normalise headers, clean cell values, and deduplicate contacts to streamline loading new
-              assortments.
+              assortments. Each sheet can include optional vendor, location, and quantity details to seed inventory, customer
+              records, sales, and purchase orders in one upload.
             </p>
           </div>
           <DashboardImportForm />
