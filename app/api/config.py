@@ -422,7 +422,16 @@ class Settings(BaseSettings):
         if url.password:
             return self
 
-        self.database_url = str(url.set(password=self.database_password))
+        new_url = url.set(password=self.database_password)
+
+        try:
+            self.database_url = new_url.render_as_string(hide_password=False)
+        except AttributeError:  # pragma: no cover - SQLAlchemy <2 compatibility
+            # ``URL.render_as_string`` was introduced in SQLAlchemy 1.4.46 and
+            # is the supported way to obtain a string without redacting the
+            # password. Older versions fall back to ``str(URL)``, which does not
+            # hide the password by default.
+            self.database_url = str(new_url)
         return self
 
     @field_validator(
