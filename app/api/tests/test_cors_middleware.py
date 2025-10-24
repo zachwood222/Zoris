@@ -80,3 +80,27 @@ def test_preflight_allows_default_render_origin(monkeypatch: pytest.MonkeyPatch)
     assert response.headers.get("access-control-allow-origin") == "https://zoris.onrender.com"
 
     _clear_settings_cache()
+
+
+def test_preflight_allows_other_render_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+    app = _build_cors_app(settings)
+    client = TestClient(app)
+
+    origin = "https://next-dashboard.onrender.com"
+    response = client.options(
+        "/dashboard/summary",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == origin
+
+    _clear_settings_cache()

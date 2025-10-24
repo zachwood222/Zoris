@@ -183,7 +183,7 @@ class Settings(BaseSettings):
         },
     )
     cors_origin_regex: str | None = Field(
-        default=None,
+        default="https://.*\\.onrender\\.com",
         alias="CORS_ORIGIN_REGEX",
         description="Optional regular expression used to match allowed CORS origins.",
     )
@@ -293,6 +293,19 @@ class Settings(BaseSettings):
                 if part
             ]
             return [origin for origin in origins if origin]
+
+        return value
+
+    @field_validator("cors_origin_regex", mode="before")
+    @classmethod
+    def _normalise_cors_origin_regex(cls, value: Any) -> Any:
+        """Allow blank values to disable the default Render wildcard."""
+
+        if value is None:
+            return None
+
+        if isinstance(value, str) and value.strip() == "":
+            return None
 
         return value
 

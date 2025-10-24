@@ -37,6 +37,50 @@ pip install -r requirements-dev.txt
 > dashboard falls back to mocked responses and spreadsheet uploads will not
 > reach the backend.
 
+### Render configuration checklist
+
+When hosting both services on Render, provision **two Web Services**—one for
+FastAPI (Python) and one for the Next.js dashboard (Node). Deploy the repository
+to each service and configure the following environment variables and build
+steps:
+
+#### FastAPI service
+
+- **Runtime & build:** Use the pre-installed Poetry/pip workflow by keeping the
+  provided `runtime.txt` (Python 3.12) and set the build command to
+  `pip install -r requirements.txt` followed by `alembic upgrade head` in a
+  post-deploy command if you want automatic migrations.
+- **Core environment:** Supply your `DATABASE_URL`, `REDIS_URL`, any S3
+  credentials, and authentication configuration just as you would locally.
+- **CORS:** The default configuration now allows requests from any
+  `https://*.onrender.com` origin, covering separate dashboard services.
+  Add `CORS_ORIGINS` with a comma-separated list if you serve the dashboard from
+  a custom domain, or set `CORS_ORIGIN_REGEX=` (empty) to disable the wildcard
+  and provide an explicit pattern of your own.
+- **Importer uploads:** Ensure the service plan allows file uploads (Render's
+  standard Web Service tiers do). No additional settings are required for the
+  XLSX importer besides the defaults.
+
+#### Next.js service
+
+- **Build command:** `npm install && npm run build` (the default `render-build.sh`
+  script from Next.js templates works as well).
+- **Runtime variables:**
+  - `NEXT_PUBLIC_API_URL=https://<your-fastapi-service>.onrender.com` so browser
+    requests reach the API.
+  - `API_PROXY_TARGET=https://<your-fastapi-service>.onrender.com` so Next.js
+    API routes proxy uploads and server-rendered data to the backend.
+  - Optionally set `API_INTERNAL_URL` to the same value; Render does not expose
+    private networking between services, so the public hostname is usually the
+    correct target for both browser and server.
+- **Auth headers:** Leave the default mock headers in place until you integrate
+  a real identity provider. The dashboard will include the mock `Authorization`
+  header automatically when no external token is configured.
+
+Redeploy both services after updating the environment variables. Once Render
+applies the new settings, spreadsheet uploads from the dashboard will reach the
+FastAPI importer without CORS errors.
+
 ## Running locally
 See [app/docs/GETTING_STARTED.md](app/docs/GETTING_STARTED.md) for detailed steps.
 
