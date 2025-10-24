@@ -1,0 +1,17 @@
+name: Performance Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run lightweight perf checks
+        run: |
+          echo "Run load tests or profiling here"

@@ -1,0 +1,24 @@
+version: "3.9"
+services:
+  web:
+    build: .
+    environment:
+      UVICORN_WORKERS: 4
+      UVICORN_LOOP: uvloop
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+  worker:
+    build: .
+    command: celery -A app.worker worker -l info
+    environment:
+      CELERY_CONCURRENCY: 4
+      CELERY_PREFETCH: 1
+      CELERY_MAX_TASKS_PER_CHILD: 1000
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
