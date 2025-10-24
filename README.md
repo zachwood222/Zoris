@@ -53,7 +53,9 @@ The `/health` endpoint now verifies database connectivity, attempts a Redis
 successful response includes component flags plus a `sample_data` summary that
 lists how many demo vendors, items, customers, and sales are present.
 
-To replace the demo fixtures with real operational data, use the importer CLI:
+To replace the demo fixtures with real operational data, prepare an XLSX workbook
+with `Products`, `Customers`, `Orders`, and `Purchase Orders` sheets and use the
+importer CLI:
 
 ```bash
 python -m app.api.scripts.import_spreadsheet path/to/your_export.xlsx

@@ -71,7 +71,7 @@ export default function DashboardImportForm(): JSX.Element {
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!file) {
-      setStatus({ state: 'error', message: 'Select a CSV or XLSX file to import.' });
+      setStatus({ state: 'error', message: 'Select an XLSX workbook to import.' });
       return;
     }
 
@@ -134,8 +134,10 @@ export default function DashboardImportForm(): JSX.Element {
           </span>
           <h3 className="text-lg font-semibold text-white">Import spreadsheet</h3>
           <p className="text-sm text-slate-300">
-            Upload a CSV or XLSX export from STORIS/Google Sheets. We will clean the data, replace the
-            demo fixtures, and load it into the live tables.
+            Upload an XLSX workbook that includes{' '}
+            <strong>Products</strong>, <strong>Customers</strong>, <strong>Orders</strong>, and{' '}
+            <strong>Purchase Orders</strong> sheets. We will clean the data, replace the demo fixtures, and load it into the live
+            tables.
           </p>
         </div>
 
@@ -143,7 +145,7 @@ export default function DashboardImportForm(): JSX.Element {
           <span className="font-medium text-slate-100">Spreadsheet file</span>
           <input
             type="file"
-            accept=".csv,.xlsx"
+            accept=".xlsx"
             onChange={(event) => {
               const selectedFile = event.target.files?.[0] ?? null;
               setFile(selectedFile);

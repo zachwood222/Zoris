@@ -66,13 +66,14 @@ def _print_summary(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Import a CSV or XLSX spreadsheet using the same pipeline as the dashboard. "
-            "Existing demo fixtures are removed automatically so your data replaces them."
+            "Import an XLSX workbook containing 'Products', 'Customers', 'Orders', and "
+            "'Purchase Orders' sheets. Existing demo fixtures are removed automatically so "
+            "your data replaces them."
         )
     )
     parser.add_argument(
         "spreadsheet",
-        help="Path to the CSV/XLSX file exported from STORIS or another system",
+        help="Path to the XLSX file exported from STORIS, Google Sheets, or another system",
     )
     parser.add_argument(
         "--dry-run",
