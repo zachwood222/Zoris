@@ -8,7 +8,7 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
 
 
 def _normalise_origin(value: str) -> str:
@@ -38,10 +38,41 @@ def _normalise_origin(value: str) -> str:
     return normalised
 
 
+class _LenientEnvSettingsSource(EnvSettingsSource):
+    """Env settings source that tolerates non-JSON strings for complex fields."""
+
+    def decode_complex_value(self, field_name: str, field: Any, value: Any) -> Any:  # type: ignore[override]
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return value
+        return super().decode_complex_value(field_name, field, value)
+
+
 class Settings(BaseSettings):
     """Central settings object loaded from environment variables."""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        lenient_env = _LenientEnvSettingsSource(
+            settings_cls,
+            case_sensitive=getattr(env_settings, "case_sensitive", None),
+            env_prefix=getattr(env_settings, "env_prefix", None),
+            env_nested_delimiter=getattr(env_settings, "env_nested_delimiter", None),
+            env_ignore_empty=getattr(env_settings, "env_ignore_empty", None),
+            env_parse_none_str=getattr(env_settings, "env_parse_none_str", None),
+        )
+        return (init_settings, lenient_env, dotenv_settings, file_secret_settings)
 
     app_name: str = "Zoris API"
     environment: Literal["local", "staging", "production"] = "local"
@@ -256,7 +287,11 @@ class Settings(BaseSettings):
                         ]
                         return [origin for origin in origins if origin]
 
-            origins = [_normalise_origin(part) for part in stripped.split(",")]
+            origins = [
+                _normalise_origin(part)
+                for part in re.split(r"[\s,]+", stripped)
+                if part
+            ]
             return [origin for origin in origins if origin]
 
         return value
@@ -314,13 +349,14 @@ class Settings(BaseSettings):
             deduped_patterns = self._dedupe_preserve_order(
                 [pattern.strip() for pattern in pattern_sources if pattern and pattern.strip()]
             )
-            if deduped_patterns:
-                combined = "|".join(
-                    f"(?:{pattern.strip('^$')})" for pattern in deduped_patterns if pattern.strip('^$')
-                )
-                self.cors_origin_regex = f"^(?:{combined})$" if combined else None
-            else:
+            sanitized = [pattern.strip("^$") for pattern in deduped_patterns if pattern.strip("^$")]
+            if not sanitized:
                 self.cors_origin_regex = None
+            elif len(sanitized) == 1:
+                self.cors_origin_regex = f"^(?:{sanitized[0]})$"
+            else:
+                combined = "|".join(f"(?:{pattern})" for pattern in sanitized)
+                self.cors_origin_regex = f"^(?:{combined})$"
         else:
             self.cors_origin_regex = None
 

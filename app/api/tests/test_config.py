@@ -117,6 +117,24 @@ def test_cors_origins_strip_trailing_slashes(monkeypatch: pytest.MonkeyPatch) ->
     _clear_settings_cache()
 
 
+def test_cors_origins_accepts_whitespace_delimiters(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://app.example.com https://admin.example.com\nhttps://portal.example.com",
+    )
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origins == [
+        "https://app.example.com",
+        "https://admin.example.com",
+        "https://portal.example.com",
+    ]
+
+    _clear_settings_cache()
+
+
 def test_cors_origins_supports_wildcard_entries(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com https://app.allowed.com")
     _clear_settings_cache()
