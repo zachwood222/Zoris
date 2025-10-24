@@ -93,6 +93,32 @@ async def test_import_products_and_customers(client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_import_ignores_leading_blank_rows(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    workbook = Workbook()
+    products_sheet = workbook.active
+    products_sheet.title = "Products"
+    products_sheet.append(["", "", ""])
+    products_sheet.append([None, None, None])
+    products_sheet.append(["Products", "for", "Import"])  # header-like note row
+    products_sheet.append(["SKU", "Description", "Price"])
+    products_sheet.append(["TABLE-01", "Dining Table", 499.0])
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    files = {"file": ("blanks.xlsx", buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["counters"]["items"] == 1
+
+
+@pytest.mark.asyncio
 async def test_import_orders_and_purchase_orders(client) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

@@ -539,13 +539,25 @@ def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any
             continue
 
         rows_iter = worksheet.iter_rows(values_only=True)
-        headers = next(rows_iter, None)
+        headers = None
+        normalised_headers: list[str] = []
+        aliases = FIELD_ALIASES.get(entity_key, {})
+        for candidate in rows_iter:
+            if candidate is None:
+                continue
+            normalised_candidate = [
+                _normalise_header(str(header)) if header is not None else ""
+                for header in candidate
+            ]
+            if not _row_has_values(candidate):
+                continue
+            if not any(_resolve_field(aliases, header) for header in normalised_candidate):
+                continue
+            headers = candidate
+            normalised_headers = normalised_candidate
+            break
         if headers is None:
             continue
-        normalised_headers = [
-            _normalise_header(str(header)) if header is not None else ""
-            for header in headers
-        ]
 
         for row in rows_iter:
             raw_row: dict[str, Any] = {}
@@ -554,7 +566,7 @@ def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any
                 if not header:
                     continue
                 value = row[index] if index < len(row) else None
-                if value not in (None, ""):
+                if _has_cell_value(value):
                     empty = False
                 raw_row[header] = value
             if empty:
@@ -589,6 +601,18 @@ def _resolve_field(aliases: Mapping[str, set[str]], header: str) -> str | None:
 def _normalise_header(value: str) -> str:
     value = value.strip().lower()
     return re.sub(r"[^a-z0-9]+", "_", value)
+
+
+def _row_has_values(row: Iterable[Any]) -> bool:
+    return any(_has_cell_value(value) for value in row)
+
+
+def _has_cell_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    return True
 
 
 def _coerce_str(value: Any) -> str | None:
