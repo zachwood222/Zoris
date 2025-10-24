@@ -81,6 +81,11 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
         description="SQLAlchemy connection string for the primary database.",
     )
+    database_require_tls: bool = Field(
+        default=False,
+        alias="DATABASE_REQUIRE_TLS",
+        description="Whether to force TLS when connecting to the primary database.",
+    )
     redis_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("REDIS_URL", "REDIS_TLS_URL"),
