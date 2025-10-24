@@ -31,3 +31,10 @@ def test_ensure_async_driver_upgrades_sqlite_driver() -> None:
 
     parsed = make_url(url)
     assert parsed.drivername == "sqlite+aiosqlite"
+
+
+def test_ensure_async_driver_preserves_password() -> None:
+    url = _ensure_async_driver("postgresql://user:secret@example.com/zoris")
+
+    parsed = make_url(url)
+    assert parsed.password == "secret"

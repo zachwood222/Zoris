@@ -31,7 +31,13 @@ def _ensure_async_driver(database_url: str, *, require_tls: bool = False) -> str
     elif dialect == "sqlite" and driver != "aiosqlite":
         url = url.set(drivername="sqlite+aiosqlite")
 
-    return str(url)
+    try:
+        return url.render_as_string(hide_password=False)
+    except AttributeError:  # pragma: no cover - SQLAlchemy <2 compatibility
+        # ``URL.render_as_string`` ensures the password is not redacted when
+        # rendering the connection string. Older SQLAlchemy versions fall back
+        # to ``str(url)``, which did not hide passwords by default.
+        return str(url)
 
 
 engine = create_async_engine(
