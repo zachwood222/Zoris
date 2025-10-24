@@ -21,6 +21,7 @@ _SENSITIVE_SETTINGS_KEYS = {
     "zap_ticket_finalized_url",
     "zap_po_received_url",
     "zap_delivery_completed_url",
+    "database_password",
 }
 
 

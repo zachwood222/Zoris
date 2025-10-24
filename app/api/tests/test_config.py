@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 import pytest
+from sqlalchemy.engine import make_url
 
 from app.api import config
 
@@ -177,3 +178,31 @@ def test_cors_origins_normalize_paths_and_case(monkeypatch: pytest.MonkeyPatch) 
         "https://app.example.com",
     ]
     assert settings.cors_origin_regex is None
+
+
+def test_database_password_injected_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user@db.example.com/zoris")
+    monkeypatch.setenv("DATABASE_PASSWORD", "supersecret")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+    url = make_url(settings.database_url)
+
+    assert url.username == "user"
+    assert url.password == "supersecret"
+
+
+def test_database_password_does_not_override_existing_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://user:existing-password@db.example.com/zoris",
+    )
+    monkeypatch.setenv("DATABASE_PASSWORD", "supersecret")
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+    url = make_url(settings.database_url)
+
+    assert url.password == "existing-password"

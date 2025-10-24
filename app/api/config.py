@@ -82,6 +82,11 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
         description="SQLAlchemy connection string for the primary database.",
     )
+    database_password: str | None = Field(
+        default=None,
+        alias="DATABASE_PASSWORD",
+        description="Password for the primary database when DATABASE_URL omits credentials.",
+    )
     database_require_tls: bool = Field(
         default=False,
         alias="DATABASE_REQUIRE_TLS",
@@ -400,6 +405,24 @@ class Settings(BaseSettings):
         else:
             self.database_require_tls = False
 
+        return self
+
+    @model_validator(mode="after")
+    def _apply_database_password(self) -> "Settings":
+        """Inject ``database_password`` into ``database_url`` when required."""
+
+        if not self.database_password:
+            return self
+
+        try:
+            url = make_url(self.database_url)
+        except Exception:  # pragma: no cover - defensive guard for invalid URLs
+            return self
+
+        if url.password:
+            return self
+
+        self.database_url = str(url.set(password=self.database_password))
         return self
 
     @field_validator(
