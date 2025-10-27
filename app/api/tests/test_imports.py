@@ -8,6 +8,7 @@ from .. import sample_data
 from ..db import SessionLocal, engine
 from ..models.base import Base
 from ..models.domain import Customer, Inventory, Item, Location, POLine, PurchaseOrder, Sale, SaleLine
+from ..services.importer import NO_IMPORTABLE_ROWS_WARNING
 
 
 def _build_workbook() -> Workbook:
@@ -268,8 +269,6 @@ async def test_import_returns_warning_when_no_importable_rows(client) -> None:
     assert response.status_code == 200
 
     payload = response.json()
-    assert payload["message"] == "Processed spreadsheet with warnings"
-    assert payload["detail"] == "No importable rows were found in the spreadsheet."
-    assert payload["counters"]["warnings"] == [
-        "No importable rows were found in the spreadsheet."
-    ]
+    assert payload["message"] == NO_IMPORTABLE_ROWS_WARNING
+    assert payload["detail"] == NO_IMPORTABLE_ROWS_WARNING
+    assert payload["counters"]["warnings"] == [NO_IMPORTABLE_ROWS_WARNING]
