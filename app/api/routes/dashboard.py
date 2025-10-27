@@ -46,6 +46,7 @@ async def _safe_scalar(
         result = await session.scalar(statement)
     except ProgrammingError as exc:
         if _is_missing_table_error(exc):
+            await session.rollback()
             return default
         raise
     return result or default
@@ -58,6 +59,7 @@ async def _safe_scalars(session: AsyncSession, statement) -> list:
         result = await session.execute(statement)
     except ProgrammingError as exc:
         if _is_missing_table_error(exc):
+            await session.rollback()
             return []
         raise
     return result.scalars().all()
