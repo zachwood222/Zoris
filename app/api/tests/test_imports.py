@@ -8,6 +8,7 @@ from .. import sample_data
 from ..db import SessionLocal, engine
 from ..models.base import Base
 from ..models.domain import Customer, Inventory, Item, Location, POLine, PurchaseOrder, Sale, SaleLine
+from ..services.importer import NO_IMPORTABLE_ROWS_WARNING
 
 
 def _build_workbook() -> Workbook:
@@ -240,3 +241,85 @@ async def test_import_rejects_unsupported_file_types(client) -> None:
     response = await client.post("/imports/spreadsheet", files=files)
     assert response.status_code == 400
     assert response.json()["detail"].startswith("Unsupported file type")
+
+
+@pytest.mark.asyncio
+async def test_import_returns_warning_when_no_importable_rows(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    workbook = Workbook()
+    notes = workbook.active
+    notes.title = "Notes"
+    notes.append(["No data here"])
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    files = {
+        "file": (
+            "notes.xlsx",
+            buffer,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["message"] == NO_IMPORTABLE_ROWS_WARNING
+    assert payload["detail"] == NO_IMPORTABLE_ROWS_WARNING
+    assert payload["counters"]["warnings"] == [NO_IMPORTABLE_ROWS_WARNING]
+
+
+@pytest.mark.asyncio
+async def test_import_detects_variant_sheet_titles(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    workbook = Workbook()
+    items_sheet = workbook.active
+    items_sheet.title = "Inventory Items"
+    items_sheet.append([
+        "Item SKU",
+        "Item Name",
+        "Retail",
+        "Cost",
+        "On Hand",
+        "Store",
+        "Vendor",
+    ])
+    items_sheet.append([
+        "CHAIR-10",
+        "Desk Chair",
+        129.99,
+        70.00,
+        5,
+        "Downtown",
+        "Seating Co",
+    ])
+
+    customers_sheet = workbook.create_sheet("Client List")
+    customers_sheet.append(["Customer Name", "Customer Email"])
+    customers_sheet.append(["Taylor Swift", "taylor@example.com"])
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    files = {
+        "file": (
+            "variant-titles.xlsx",
+            buffer,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["counters"]["items"] == 1
+    assert payload["counters"]["customers"] == 1
