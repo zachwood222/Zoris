@@ -240,3 +240,36 @@ async def test_import_rejects_unsupported_file_types(client) -> None:
     response = await client.post("/imports/spreadsheet", files=files)
     assert response.status_code == 400
     assert response.json()["detail"].startswith("Unsupported file type")
+
+
+@pytest.mark.asyncio
+async def test_import_returns_warning_when_no_importable_rows(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    workbook = Workbook()
+    notes = workbook.active
+    notes.title = "Notes"
+    notes.append(["No data here"])
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    files = {
+        "file": (
+            "notes.xlsx",
+            buffer,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    response = await client.post("/imports/spreadsheet", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["message"] == "Processed spreadsheet with warnings"
+    assert payload["detail"] == "No importable rows were found in the spreadsheet."
+    assert payload["counters"]["warnings"] == [
+        "No importable rows were found in the spreadsheet."
+    ]

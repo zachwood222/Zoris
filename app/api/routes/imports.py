@@ -28,7 +28,10 @@ async def upload_spreadsheet(
     if counters.customers:
         message_parts.append(f"loaded {counters.customers} customers")
     if not message_parts:
-        message_parts.append("Processed spreadsheet")
+        if warnings:
+            message_parts.append("Processed spreadsheet with warnings")
+        else:
+            message_parts.append("Processed spreadsheet")
 
     detail: str | None = None
     if warnings:
