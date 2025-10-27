@@ -65,6 +65,19 @@ async def _safe_scalars(session: AsyncSession, statement) -> list:
     return result.scalars().all()
 
 
+async def _safe_all(session: AsyncSession, statement) -> list:
+    """Execute a statement returning raw rows and swallow missing-table errors."""
+
+    try:
+        result = await session.execute(statement)
+    except ProgrammingError as exc:
+        if _is_missing_table_error(exc):
+            await session.rollback()
+            return []
+        raise
+    return result.all()
+
+
 def _humanize_delta(now: datetime, past: datetime) -> str:
     if past.tzinfo is None:
         past = past.replace(tzinfo=timezone.utc)
@@ -190,13 +203,13 @@ async def get_dashboard_summary(
         .select_from(PurchaseOrder)
         .where(PurchaseOrder.status.in_(["open", "partial"]))
     )
-    inbound = (await session.scalar(inbound_stmt)) or 0
+    inbound = await _safe_scalar(session, inbound_stmt, default=0)
     recent_receivings_stmt = (
         select(func.count())
         .select_from(Receiving)
         .where(Receiving.created_at >= last_24h)
     )
-    recent_receivings = (await session.scalar(recent_receivings_stmt)) or 0
+    recent_receivings = await _safe_scalar(session, recent_receivings_stmt, default=0)
 
     worker_activity_stmt = (
         select(func.count(func.distinct(Receiving.received_by)))
@@ -248,11 +261,9 @@ async def get_dashboard_summary(
             )
         )
 
-    recent_receiving_rows = (
-        await session.execute(
-            select(Receiving).order_by(Receiving.created_at.desc()).limit(2)
-        )
-    ).scalars()
+    recent_receiving_rows = await _safe_scalars(
+        session, select(Receiving).order_by(Receiving.created_at.desc()).limit(2)
+    )
     for receiving in recent_receiving_rows:
         activities.append(
             (
@@ -265,11 +276,9 @@ async def get_dashboard_summary(
             )
         )
 
-    recent_pos = (
-        await session.execute(
-            select(PurchaseOrder).order_by(PurchaseOrder.created_at.desc()).limit(2)
-        )
-    ).scalars()
+    recent_pos = await _safe_scalars(
+        session, select(PurchaseOrder).order_by(PurchaseOrder.created_at.desc()).limit(2)
+    )
     for po in recent_pos:
         activities.append(
             (
@@ -379,18 +388,17 @@ async def get_dashboard_summary(
             )
         )
 
-    inbound_po_rows = (
-        await session.execute(
-            select(PurchaseOrder)
-            .options(
-                selectinload(PurchaseOrder.vendor),
-                selectinload(PurchaseOrder.receivings),
-            )
-            .where(PurchaseOrder.status.in_(["open", "partial"]))
-            .order_by(PurchaseOrder.created_at.desc())
-            .limit(10)
+    inbound_po_rows = await _safe_scalars(
+        session,
+        select(PurchaseOrder)
+        .options(
+            selectinload(PurchaseOrder.vendor),
+            selectinload(PurchaseOrder.receivings),
         )
-    ).scalars().all()
+        .where(PurchaseOrder.status.in_(["open", "partial"]))
+        .order_by(PurchaseOrder.created_at.desc())
+        .limit(10),
+    )
     inbound_po_items: list[DashboardDrilldownItem] = []
     for po in inbound_po_rows:
         reference = po.external_ref or f"#{po.po_id}"
@@ -410,18 +418,17 @@ async def get_dashboard_summary(
             )
         )
 
-    receiver_activity = (
-        await session.execute(
-            select(
-                Receiving.received_by,
-                func.count(Receiving.receipt_id),
-                func.max(Receiving.received_at),
-            )
-            .where(Receiving.received_at >= worker_window)
-            .group_by(Receiving.received_by)
-            .order_by(func.max(Receiving.received_at).desc())
+    receiver_activity = await _safe_all(
+        session,
+        select(
+            Receiving.received_by,
+            func.count(Receiving.receipt_id),
+            func.max(Receiving.received_at),
         )
-    ).all()
+        .where(Receiving.received_at >= worker_window)
+        .group_by(Receiving.received_by)
+        .order_by(func.max(Receiving.received_at).desc()),
+    )
     active_receivers_items: list[DashboardDrilldownItem] = []
     for received_by, count, last_received_at in receiver_activity:
         name = received_by or "Unassigned"
