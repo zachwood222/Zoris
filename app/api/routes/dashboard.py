@@ -216,7 +216,7 @@ async def get_dashboard_summary(
         .select_from(Receiving)
         .where(Receiving.created_at >= worker_window)
     )
-    active_workers = (await session.scalar(worker_activity_stmt)) or 0
+    active_workers = await _safe_scalar(session, worker_activity_stmt, default=0)
 
     metrics = [
         DashboardMetric(
