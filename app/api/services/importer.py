@@ -26,7 +26,7 @@ from ..utils.datetime import utc_now
 
 SUPPORTED_SHEETS = {"products", "customers", "orders", "purchase_orders"}
 
-NO_IMPORTABLE_ROWS_DETAIL = "no_importable_rows"
+NO_IMPORTABLE_ROWS_WARNING = "No importable rows were found in the spreadsheet."
 
 FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
     "products": {
@@ -108,12 +108,15 @@ async def import_spreadsheet(
     session: AsyncSession, data: bytes, filename: str
 ) -> ImportResult:
     datasets = extract_datasets(data, filename)
+    counters = ImportCounters()
     if not any(datasets.get(name) for name in SUPPORTED_SHEETS):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=NO_IMPORTABLE_ROWS_DETAIL
+        counters.warnings.append(NO_IMPORTABLE_ROWS_WARNING)
+        return ImportResult(
+            counters=counters,
+            cleared_sample_data=False,
+            imported_at=utc_now(),
         )
 
-    counters = ImportCounters()
     cleared_demo = await _clear_existing_data(session)
 
     vendor_index: dict[str, domain.Vendor] = {}

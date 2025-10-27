@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..schemas.imports import SpreadsheetImportResponse
-from ..services.importer import import_spreadsheet
+from ..services.importer import NO_IMPORTABLE_ROWS_WARNING, import_spreadsheet
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
@@ -28,7 +28,13 @@ async def upload_spreadsheet(
     if counters.customers:
         message_parts.append(f"loaded {counters.customers} customers")
     if not message_parts:
-        message_parts.append("Processed spreadsheet")
+        if warnings:
+            if warnings == [NO_IMPORTABLE_ROWS_WARNING]:
+                message_parts.append(NO_IMPORTABLE_ROWS_WARNING)
+            else:
+                message_parts.append("Processed spreadsheet with warnings")
+        else:
+            message_parts.append("Processed spreadsheet")
 
     detail: str | None = None
     if warnings:
