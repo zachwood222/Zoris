@@ -30,16 +30,16 @@ NO_IMPORTABLE_ROWS_WARNING = "No importable rows were found in the spreadsheet."
 
 FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
     "products": {
-        "sku": {"sku", "product_sku"},
-        "description": {"description", "product_description", "name"},
+        "sku": {"sku", "product_sku", "item_sku", "item_number", "item_id"},
+        "description": {"description", "product_description", "name", "product_name", "item_name", "item_description"},
         "category": {"category"},
         "subcategory": {"subcategory", "sub_category"},
         "unit_cost": {"unit_cost", "cost"},
         "price": {"price", "retail", "sale_price"},
         "tax_code": {"tax_code"},
         "barcode": {"barcode", "upc"},
-        "qty_on_hand": {"qty_on_hand", "quantity", "qty"},
-        "location_name": {"location", "location_name", "warehouse"},
+        "qty_on_hand": {"qty_on_hand", "quantity", "qty", "on_hand", "inventory"},
+        "location_name": {"location", "location_name", "warehouse", "store", "site"},
         "vendor_name": {"vendor", "vendor_name"},
     },
     "customers": {
@@ -537,14 +537,9 @@ def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for worksheet in workbook.worksheets:
-        entity_key = _normalise_header(worksheet.title)
-        if entity_key not in SUPPORTED_SHEETS:
-            continue
-
         rows_iter = worksheet.iter_rows(values_only=True)
         headers = None
         normalised_headers: list[str] = []
-        aliases = FIELD_ALIASES.get(entity_key, {})
         for candidate in rows_iter:
             if candidate is None:
                 continue
@@ -554,13 +549,19 @@ def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any
             ]
             if not _row_has_values(candidate):
                 continue
-            if not any(_resolve_field(aliases, header) for header in normalised_candidate):
+            if not _row_matches_supported_headers(normalised_candidate):
                 continue
             headers = candidate
             normalised_headers = normalised_candidate
             break
         if headers is None:
             continue
+
+        entity_key = _identify_entity(worksheet.title, normalised_headers)
+        if entity_key is None:
+            continue
+
+        aliases = FIELD_ALIASES.get(entity_key, {})
 
         for row in rows_iter:
             raw_row: dict[str, Any] = {}
@@ -599,6 +600,34 @@ def _resolve_field(aliases: Mapping[str, set[str]], header: str) -> str | None:
         if header in candidates:
             return field
     return None
+
+
+def _identify_entity(title: str, headers: Iterable[str]) -> str | None:
+    normalised_title = _normalise_header(title)
+    if normalised_title in SUPPORTED_SHEETS:
+        return normalised_title
+
+    best_entity: str | None = None
+    best_score = 0
+    for entity, aliases in FIELD_ALIASES.items():
+        score = sum(1 for header in headers if _resolve_field(aliases, header))
+        if score > best_score:
+            best_entity = entity
+            best_score = score
+        elif score == best_score:
+            best_entity = None
+
+    if best_entity is not None and best_score > 0:
+        return best_entity
+    return None
+
+
+def _row_matches_supported_headers(headers: Iterable[str]) -> bool:
+    for header in headers:
+        for aliases in FIELD_ALIASES.values():
+            if _resolve_field(aliases, header):
+                return True
+    return False
 
 
 def _normalise_header(value: str) -> str:
