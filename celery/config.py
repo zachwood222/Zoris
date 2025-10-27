@@ -5,8 +5,8 @@ import os
 
 from kombu import Queue
 
-BROKER_URL = "redis://localhost:6379/0"
-RESULT_BACKEND = "redis://localhost:6379/1"
+BROKER_URL = "redis://red-d3inaspr0fns7381l5gg:6379"
+RESULT_BACKEND = "redis://red-d3inaspr0fns7381l5gg:6379/1"
 
 
 def _int_env(name: str, default: str) -> int:
