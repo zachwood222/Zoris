@@ -10,7 +10,7 @@ from psycopg.errors import UndefinedTable
 from sqlalchemy import func, select
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_session
 from ..models.domain import PurchaseOrder, Receiving, Sale
@@ -138,6 +138,15 @@ def _format_eta(now: datetime, target: datetime | None) -> str:
             return "Due in 1 day"
         return f"Due in {delta_days} days"
     return f"Arrived {_humanize_delta(now, target)}"
+
+async def _table_exists(session: AsyncSession, table_name: str) -> bool:
+    """Return True if the requested table exists in the bound database."""
+
+    def _has_table(sync_session: Session) -> bool:
+        inspector = inspect(sync_session.get_bind())
+        return inspector.has_table(table_name)
+
+    return await session.run_sync(_has_table)
 
 
 @router.get("/summary", response_model=DashboardSummaryResponse)
