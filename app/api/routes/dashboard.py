@@ -6,7 +6,9 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select, inspect
+from psycopg.errors import UndefinedTable
+from sqlalchemy import func, select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, selectinload
 
@@ -23,6 +25,42 @@ from ..schemas.dashboard import (
 from ..utils.datetime import utc_now
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+def _is_missing_table_error(exc: ProgrammingError) -> bool:
+    """Return True when the underlying DBAPI error indicates a missing table."""
+
+    orig = getattr(exc, "orig", None)
+    if isinstance(orig, UndefinedTable):
+        return True
+    message = str(orig or exc).lower()
+    return "does not exist" in message or "undefined table" in message
+
+
+async def _safe_scalar(
+    session: AsyncSession, statement, default: int | float = 0
+) -> int | float:
+    """Execute a scalar statement and swallow missing-table errors."""
+
+    try:
+        result = await session.scalar(statement)
+    except ProgrammingError as exc:
+        if _is_missing_table_error(exc):
+            return default
+        raise
+    return result or default
+
+
+async def _safe_scalars(session: AsyncSession, statement) -> list:
+    """Execute a statement returning ORM rows and swallow missing-table errors."""
+
+    try:
+        result = await session.execute(statement)
+    except ProgrammingError as exc:
+        if _is_missing_table_error(exc):
+            return []
+        raise
+    return result.scalars().all()
 
 
 def _humanize_delta(now: datetime, past: datetime) -> str:
@@ -119,66 +157,31 @@ async def get_dashboard_summary(
     last_24h = now - timedelta(hours=24)
     worker_window = now - timedelta(hours=4)
 
-    open_sales = 0
-    open_sales_today = 0
-    draft_ocr = 0
-    draft_ocr_new = 0
-    recent_sales: list[Sale] = []
-    open_sales_rows: list[Sale] = []
-    draft_ticket_rows: list[Sale] = []
+    open_sales_stmt = select(func.count()).select_from(Sale).where(Sale.status == "open")
+    open_sales = await _safe_scalar(session, open_sales_stmt, default=0)
+    open_sales_today_stmt = (
+        select(func.count())
+        .select_from(Sale)
+        .where(Sale.status == "open", Sale.created_at >= last_24h)
+    )
+    open_sales_today = await _safe_scalar(session, open_sales_today_stmt, default=0)
 
-    if await _table_exists(session, Sale.__tablename__):
-        open_sales_stmt = select(func.count()).select_from(Sale).where(Sale.status == "open")
-        open_sales = (await session.scalar(open_sales_stmt)) or 0
-        open_sales_today_stmt = (
-            select(func.count())
-            .select_from(Sale)
-            .where(Sale.status == "open", Sale.created_at >= last_24h)
+    draft_ocr_stmt = (
+        select(func.count())
+        .select_from(Sale)
+        .where(Sale.status == "draft", Sale.source == "ocr_ticket")
+    )
+    draft_ocr = await _safe_scalar(session, draft_ocr_stmt, default=0)
+    draft_ocr_new_stmt = (
+        select(func.count())
+        .select_from(Sale)
+        .where(
+            Sale.status == "draft",
+            Sale.source == "ocr_ticket",
+            Sale.created_at >= last_24h,
         )
-        open_sales_today = (await session.scalar(open_sales_today_stmt)) or 0
-
-        draft_ocr_stmt = (
-            select(func.count())
-            .select_from(Sale)
-            .where(Sale.status == "draft", Sale.source == "ocr_ticket")
-        )
-        draft_ocr = (await session.scalar(draft_ocr_stmt)) or 0
-        draft_ocr_new_stmt = (
-            select(func.count())
-            .select_from(Sale)
-            .where(
-                Sale.status == "draft",
-                Sale.source == "ocr_ticket",
-                Sale.created_at >= last_24h,
-            )
-        )
-        draft_ocr_new = (await session.scalar(draft_ocr_new_stmt)) or 0
-
-        recent_sales = (
-            await session.execute(
-                select(Sale).order_by(Sale.created_at.desc()).limit(2)
-            )
-        ).scalars().all()
-
-        open_sales_rows = (
-            await session.execute(
-                select(Sale)
-                .options(selectinload(Sale.customer))
-                .where(Sale.status == "open")
-                .order_by(Sale.sale_date.desc())
-                .limit(10)
-            )
-        ).scalars().all()
-
-        draft_ticket_rows = (
-            await session.execute(
-                select(Sale)
-                .options(selectinload(Sale.customer))
-                .where(Sale.status == "draft", Sale.source == "ocr_ticket")
-                .order_by(Sale.created_at.desc())
-                .limit(10)
-            )
-        ).scalars().all()
+    )
+    draft_ocr_new = await _safe_scalar(session, draft_ocr_new_stmt, default=0)
 
     inbound_stmt = (
         select(func.count())
@@ -228,6 +231,9 @@ async def get_dashboard_summary(
     ]
 
     activities: list[tuple[datetime, DashboardActivity]] = []
+    recent_sales = await _safe_scalars(
+        session, select(Sale).order_by(Sale.created_at.desc()).limit(2)
+    )
     for sale in recent_sales:
         activities.append(
             (
@@ -302,6 +308,14 @@ async def get_dashboard_summary(
         ),
     ]
 
+    open_sales_rows = await _safe_scalars(
+        session,
+        select(Sale)
+        .options(selectinload(Sale.customer))
+        .where(Sale.status == "open")
+        .order_by(Sale.sale_date.desc())
+        .limit(10),
+    )
     open_sales_items: list[DashboardDrilldownItem] = []
     for sale in open_sales_rows:
         display_ref = sale.external_ref or f"#{sale.sale_id}"
@@ -326,6 +340,14 @@ async def get_dashboard_summary(
             )
         )
 
+    draft_ticket_rows = await _safe_scalars(
+        session,
+        select(Sale)
+        .options(selectinload(Sale.customer))
+        .where(Sale.status == "draft", Sale.source == "ocr_ticket")
+        .order_by(Sale.created_at.desc())
+        .limit(10),
+    )
     draft_ticket_items: list[DashboardDrilldownItem] = []
     for ticket in draft_ticket_rows:
         reference = (
