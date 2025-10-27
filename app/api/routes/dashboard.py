@@ -6,9 +6,9 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import func, select, inspect
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_session
 from ..models.domain import PurchaseOrder, Receiving, Sale
@@ -101,6 +101,15 @@ def _format_eta(now: datetime, target: datetime | None) -> str:
         return f"Due in {delta_days} days"
     return f"Arrived {_humanize_delta(now, target)}"
 
+async def _table_exists(session: AsyncSession, table_name: str) -> bool:
+    """Return True if the requested table exists in the bound database."""
+
+    def _has_table(sync_session: Session) -> bool:
+        inspector = inspect(sync_session.get_bind())
+        return inspector.has_table(table_name)
+
+    return await session.run_sync(_has_table)
+
 
 @router.get("/summary", response_model=DashboardSummaryResponse)
 async def get_dashboard_summary(
@@ -110,31 +119,66 @@ async def get_dashboard_summary(
     last_24h = now - timedelta(hours=24)
     worker_window = now - timedelta(hours=4)
 
-    open_sales_stmt = select(func.count()).select_from(Sale).where(Sale.status == "open")
-    open_sales = (await session.scalar(open_sales_stmt)) or 0
-    open_sales_today_stmt = (
-        select(func.count())
-        .select_from(Sale)
-        .where(Sale.status == "open", Sale.created_at >= last_24h)
-    )
-    open_sales_today = (await session.scalar(open_sales_today_stmt)) or 0
+    open_sales = 0
+    open_sales_today = 0
+    draft_ocr = 0
+    draft_ocr_new = 0
+    recent_sales: list[Sale] = []
+    open_sales_rows: list[Sale] = []
+    draft_ticket_rows: list[Sale] = []
 
-    draft_ocr_stmt = (
-        select(func.count())
-        .select_from(Sale)
-        .where(Sale.status == "draft", Sale.source == "ocr_ticket")
-    )
-    draft_ocr = (await session.scalar(draft_ocr_stmt)) or 0
-    draft_ocr_new_stmt = (
-        select(func.count())
-        .select_from(Sale)
-        .where(
-            Sale.status == "draft",
-            Sale.source == "ocr_ticket",
-            Sale.created_at >= last_24h,
+    if await _table_exists(session, Sale.__tablename__):
+        open_sales_stmt = select(func.count()).select_from(Sale).where(Sale.status == "open")
+        open_sales = (await session.scalar(open_sales_stmt)) or 0
+        open_sales_today_stmt = (
+            select(func.count())
+            .select_from(Sale)
+            .where(Sale.status == "open", Sale.created_at >= last_24h)
         )
-    )
-    draft_ocr_new = (await session.scalar(draft_ocr_new_stmt)) or 0
+        open_sales_today = (await session.scalar(open_sales_today_stmt)) or 0
+
+        draft_ocr_stmt = (
+            select(func.count())
+            .select_from(Sale)
+            .where(Sale.status == "draft", Sale.source == "ocr_ticket")
+        )
+        draft_ocr = (await session.scalar(draft_ocr_stmt)) or 0
+        draft_ocr_new_stmt = (
+            select(func.count())
+            .select_from(Sale)
+            .where(
+                Sale.status == "draft",
+                Sale.source == "ocr_ticket",
+                Sale.created_at >= last_24h,
+            )
+        )
+        draft_ocr_new = (await session.scalar(draft_ocr_new_stmt)) or 0
+
+        recent_sales = (
+            await session.execute(
+                select(Sale).order_by(Sale.created_at.desc()).limit(2)
+            )
+        ).scalars().all()
+
+        open_sales_rows = (
+            await session.execute(
+                select(Sale)
+                .options(selectinload(Sale.customer))
+                .where(Sale.status == "open")
+                .order_by(Sale.sale_date.desc())
+                .limit(10)
+            )
+        ).scalars().all()
+
+        draft_ticket_rows = (
+            await session.execute(
+                select(Sale)
+                .options(selectinload(Sale.customer))
+                .where(Sale.status == "draft", Sale.source == "ocr_ticket")
+                .order_by(Sale.created_at.desc())
+                .limit(10)
+            )
+        ).scalars().all()
 
     inbound_stmt = (
         select(func.count())
@@ -184,11 +228,6 @@ async def get_dashboard_summary(
     ]
 
     activities: list[tuple[datetime, DashboardActivity]] = []
-    recent_sales = (
-        await session.execute(
-            select(Sale).order_by(Sale.created_at.desc()).limit(2)
-        )
-    ).scalars()
     for sale in recent_sales:
         activities.append(
             (
@@ -263,15 +302,6 @@ async def get_dashboard_summary(
         ),
     ]
 
-    open_sales_rows = (
-        await session.execute(
-            select(Sale)
-            .options(selectinload(Sale.customer))
-            .where(Sale.status == "open")
-            .order_by(Sale.sale_date.desc())
-            .limit(10)
-        )
-    ).scalars().all()
     open_sales_items: list[DashboardDrilldownItem] = []
     for sale in open_sales_rows:
         display_ref = sale.external_ref or f"#{sale.sale_id}"
@@ -296,15 +326,6 @@ async def get_dashboard_summary(
             )
         )
 
-    draft_ticket_rows = (
-        await session.execute(
-            select(Sale)
-            .options(selectinload(Sale.customer))
-            .where(Sale.status == "draft", Sale.source == "ocr_ticket")
-            .order_by(Sale.created_at.desc())
-            .limit(10)
-        )
-    ).scalars().all()
     draft_ticket_items: list[DashboardDrilldownItem] = []
     for ticket in draft_ticket_rows:
         reference = (
