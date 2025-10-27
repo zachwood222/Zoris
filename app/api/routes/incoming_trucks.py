@@ -1,12 +1,15 @@
 """Incoming truck endpoints."""
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from decimal import Decimal
 from typing import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from psycopg.errors import UndefinedTable
 from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
@@ -30,6 +33,30 @@ from ..security import User, require_roles
 from ..utils.datetime import utc_now
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
+
+
+async def _execute_incoming_truck_query(
+    session: AsyncSession, statement
+):
+    """Execute a statement while tolerating missing truck tables.
+
+    Older databases may not yet have the incoming truck tables. When that
+    happens, we want to return an empty payload instead of failing the entire
+    request with a 500 error.
+    """
+
+    try:
+        return await session.execute(statement)
+    except ProgrammingError as exc:
+        if isinstance(exc.orig, UndefinedTable):
+            logger.warning(
+                "Incoming truck tables are unavailable; returning an empty response.",
+            )
+            await session.rollback()
+            return None
+        raise
 
 
 def _to_decimal(value: float | None) -> Decimal | None:
@@ -130,7 +157,12 @@ def _build_truck_response(
 async def list_incoming_trucks(
     session: AsyncSession = Depends(get_session),
 ) -> list[IncomingTruckResponse]:
-    result = await session.execute(select(IncomingTruck).order_by(IncomingTruck.created_at.desc()))
+    result = await _execute_incoming_truck_query(
+        session, select(IncomingTruck).order_by(IncomingTruck.created_at.desc())
+    )
+    if result is None:
+        return []
+
     trucks = result.scalars().all()
     if not trucks:
         return []
@@ -141,19 +173,22 @@ async def list_incoming_trucks(
     updates_map: dict[int, list[IncomingTruckUpdate]] = defaultdict(list)
 
     if truck_ids:
-        line_rows = await session.execute(
-            select(IncomingTruckLine).where(IncomingTruckLine.truck_id.in_(truck_ids))
+        line_rows = await _execute_incoming_truck_query(
+            session, select(IncomingTruckLine).where(IncomingTruckLine.truck_id.in_(truck_ids))
         )
-        for line in line_rows.scalars():
-            lines_map[line.truck_id].append(line)
+        if line_rows is not None:
+            for line in line_rows.scalars():
+                lines_map[line.truck_id].append(line)
 
-        update_rows = await session.execute(
+        update_rows = await _execute_incoming_truck_query(
+            session,
             select(IncomingTruckUpdate)
             .where(IncomingTruckUpdate.truck_id.in_(truck_ids))
-            .order_by(IncomingTruckUpdate.created_at)
+            .order_by(IncomingTruckUpdate.created_at),
         )
-        for update in update_rows.scalars():
-            updates_map[update.truck_id].append(update)
+        if update_rows is not None:
+            for update in update_rows.scalars():
+                updates_map[update.truck_id].append(update)
 
     return [
         _build_truck_response(
