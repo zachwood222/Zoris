@@ -30,22 +30,53 @@ NO_IMPORTABLE_ROWS_WARNING = "No importable rows were found in the spreadsheet."
 
 FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
     "products": {
-        "sku": {"sku", "product_sku", "item_sku", "item_number", "item_id"},
+        "sku": {
+            "sku",
+            "product_sku",
+            "item_sku",
+            "item_number",
+            "item_id",
+            "product_number",
+            "product_no",
+            "prod_number",
+            "prod_no",
+        },
         "description": {"description", "product_description", "name", "product_name", "item_name", "item_description"},
-        "category": {"category"},
+        "category": {"category", "brand", "product_brand", "brand_name"},
         "subcategory": {"subcategory", "sub_category"},
-        "unit_cost": {"unit_cost", "cost"},
-        "price": {"price", "retail", "sale_price"},
+        "unit_cost": {"unit_cost", "cost", "cost_price"},
+        "price": {"price", "retail", "sale_price", "unit_price"},
         "tax_code": {"tax_code"},
-        "barcode": {"barcode", "upc"},
-        "qty_on_hand": {"qty_on_hand", "quantity", "qty", "on_hand", "inventory"},
-        "location_name": {"location", "location_name", "warehouse", "store", "site"},
+        "barcode": {"barcode", "upc", "upc_code"},
+        "qty_on_hand": {
+            "qty_on_hand",
+            "quantity",
+            "qty",
+            "on_hand",
+            "inventory",
+            "quantity_on_hand",
+            "stock_on_hand",
+        },
+        "location_name": {
+            "location",
+            "location_name",
+            "warehouse",
+            "store",
+            "site",
+            "warehouse_location",
+            "warehouse_loc",
+            "whse_locn",
+            "storage_location",
+            "storage_locn",
+            "stock_location",
+            "bin_location",
+        },
         "vendor_name": {"vendor", "vendor_name"},
     },
     "customers": {
-        "name": {"name", "customer_name"},
-        "email": {"email", "customer_email"},
-        "phone": {"phone", "customer_phone"},
+        "name": {"name", "customer_name", "full_name", "customer_full_name"},
+        "email": {"email", "customer_email", "email_address", "customer_email_address"},
+        "phone": {"phone", "customer_phone", "phone_number", "customer_phone_number"},
     },
     "orders": {
         "external_ref": {"order_number", "order_no", "order_id", "external_ref"},
@@ -81,14 +112,14 @@ FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
         "unit_cost": {"unit_cost", "cost"},
     },
     "vendors": {
-        "name": {"vendor_name", "name"},
-        "email": {"vendor_email", "email"},
-        "phone": {"vendor_phone", "phone"},
+        "name": {"vendor_name", "name", "company", "company_name", "supplier_name", "contact_name"},
+        "email": {"vendor_email", "email", "email_address", "contact_email"},
+        "phone": {"vendor_phone", "phone", "phone_number", "contact_phone"},
         "terms": {"terms"},
-        "address_line1": {"address", "address_line1", "street"},
-        "address_line2": {"address_line2", "suite", "apt"},
+        "address_line1": {"address", "address_line1", "street", "address1", "line1"},
+        "address_line2": {"address_line2", "suite", "apt", "address2", "line2"},
         "city": {"city"},
-        "state": {"state", "province", "region"},
+        "state": {"state", "province", "region", "state_province"},
         "postal_code": {"postal_code", "zip", "zip_code"},
         "country": {"country"},
     },
@@ -126,7 +157,7 @@ async def import_spreadsheet(
             detail=f"Unsupported dataset '{dataset}'.",
         )
 
-    datasets = extract_datasets(data, filename)
+    datasets = extract_datasets(data, filename, preferred_entity=dataset_key)
     counters = ImportCounters()
 
     if dataset_key is not None:
@@ -769,7 +800,9 @@ async def _ensure_customer(
     return customer
 
 
-def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any]]]:
+def extract_datasets(
+    data: bytes, filename: str, preferred_entity: str | None = None
+) -> dict[str, list[dict[str, Any]]]:
     if not filename.lower().endswith(".xlsx"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -805,7 +838,9 @@ def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any
         if headers is None:
             continue
 
-        entity_key = _identify_entity(worksheet.title, normalised_headers)
+        entity_key = _identify_entity(
+            worksheet.title, normalised_headers, preferred_entity=preferred_entity
+        )
         if entity_key is None:
             continue
 
@@ -850,24 +885,69 @@ def _resolve_field(aliases: Mapping[str, set[str]], header: str) -> str | None:
     return None
 
 
-def _identify_entity(title: str, headers: Iterable[str]) -> str | None:
+def _identify_entity(
+    title: str, headers: Iterable[str], preferred_entity: str | None = None
+) -> str | None:
     normalised_title = _normalise_header(title)
     if normalised_title in SUPPORTED_SHEETS:
         return normalised_title
 
-    best_entity: str | None = None
-    best_score = 0
+    scored_entities: dict[str, int] = {}
     for entity, aliases in FIELD_ALIASES.items():
         score = sum(1 for header in headers if _resolve_field(aliases, header))
-        if score > best_score:
-            best_entity = entity
-            best_score = score
-        elif score == best_score:
-            best_entity = None
+        if score:
+            scored_entities[entity] = score
 
-    if best_entity is not None and best_score > 0:
-        return best_entity
+    if not scored_entities:
+        return None
+
+    best_score = max(scored_entities.values())
+
+    if preferred_entity:
+        preferred_score = scored_entities.get(preferred_entity)
+        if preferred_score:
+            return preferred_entity
+
+    best_entities = [
+        entity for entity, score in scored_entities.items() if score == best_score
+    ]
+    if len(best_entities) == 1:
+        return best_entities[0]
+
+    if preferred_entity and preferred_entity in best_entities:
+        return preferred_entity
+
+    title_matches = [
+        entity
+        for entity in best_entities
+        if _title_suggests_entity(normalised_title, entity)
+    ]
+    if len(title_matches) == 1:
+        return title_matches[0]
+
     return None
+
+
+def _title_suggests_entity(title: str, entity: str) -> bool:
+    if not title:
+        return False
+
+    if entity in title:
+        return True
+
+    singular_entity = entity[:-1] if entity.endswith("s") else entity
+    if singular_entity and singular_entity in title:
+        return True
+
+    compact_entity = entity.replace("_", "")
+    if compact_entity and compact_entity in title:
+        return True
+
+    compact_singular = singular_entity.replace("_", "")
+    if compact_singular and compact_singular in title:
+        return True
+
+    return False
 
 
 def _row_matches_supported_headers(headers: Iterable[str]) -> bool:
@@ -880,7 +960,10 @@ def _row_matches_supported_headers(headers: Iterable[str]) -> bool:
 
 def _normalise_header(value: str) -> str:
     value = value.strip().lower()
-    return re.sub(r"[^a-z0-9]+", "_", value)
+    value = re.sub(r"[^a-z0-9]+", "_", value)
+    value = re.sub(r"_(optional|required|req|opt)(?:_field)?$", "", value)
+    value = re.sub(r"_+", "_", value)
+    return value.strip("_")
 
 
 def _row_has_values(row: Iterable[Any]) -> bool:
