@@ -126,7 +126,7 @@ async def import_spreadsheet(
             detail=f"Unsupported dataset '{dataset}'.",
         )
 
-    datasets = extract_datasets(data, filename)
+    datasets = extract_datasets(data, filename, preferred_entity=dataset_key)
     counters = ImportCounters()
 
     if dataset_key is not None:
@@ -769,7 +769,9 @@ async def _ensure_customer(
     return customer
 
 
-def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any]]]:
+def extract_datasets(
+    data: bytes, filename: str, preferred_entity: str | None = None
+) -> dict[str, list[dict[str, Any]]]:
     if not filename.lower().endswith(".xlsx"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -805,7 +807,9 @@ def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any
         if headers is None:
             continue
 
-        entity_key = _identify_entity(worksheet.title, normalised_headers)
+        entity_key = _identify_entity(
+            worksheet.title, normalised_headers, preferred_entity=preferred_entity
+        )
         if entity_key is None:
             continue
 
@@ -850,24 +854,69 @@ def _resolve_field(aliases: Mapping[str, set[str]], header: str) -> str | None:
     return None
 
 
-def _identify_entity(title: str, headers: Iterable[str]) -> str | None:
+def _identify_entity(
+    title: str, headers: Iterable[str], preferred_entity: str | None = None
+) -> str | None:
     normalised_title = _normalise_header(title)
     if normalised_title in SUPPORTED_SHEETS:
         return normalised_title
 
-    best_entity: str | None = None
-    best_score = 0
+    scored_entities: dict[str, int] = {}
     for entity, aliases in FIELD_ALIASES.items():
         score = sum(1 for header in headers if _resolve_field(aliases, header))
-        if score > best_score:
-            best_entity = entity
-            best_score = score
-        elif score == best_score:
-            best_entity = None
+        if score:
+            scored_entities[entity] = score
 
-    if best_entity is not None and best_score > 0:
-        return best_entity
+    if not scored_entities:
+        return None
+
+    best_score = max(scored_entities.values())
+
+    if preferred_entity:
+        preferred_score = scored_entities.get(preferred_entity)
+        if preferred_score and preferred_score == best_score:
+            return preferred_entity
+
+    best_entities = [
+        entity for entity, score in scored_entities.items() if score == best_score
+    ]
+    if len(best_entities) == 1:
+        return best_entities[0]
+
+    if preferred_entity and preferred_entity in best_entities:
+        return preferred_entity
+
+    title_matches = [
+        entity
+        for entity in best_entities
+        if _title_suggests_entity(normalised_title, entity)
+    ]
+    if len(title_matches) == 1:
+        return title_matches[0]
+
     return None
+
+
+def _title_suggests_entity(title: str, entity: str) -> bool:
+    if not title:
+        return False
+
+    if entity in title:
+        return True
+
+    singular_entity = entity[:-1] if entity.endswith("s") else entity
+    if singular_entity and singular_entity in title:
+        return True
+
+    compact_entity = entity.replace("_", "")
+    if compact_entity and compact_entity in title:
+        return True
+
+    compact_singular = singular_entity.replace("_", "")
+    if compact_singular and compact_singular in title:
+        return True
+
+    return False
 
 
 def _row_matches_supported_headers(headers: Iterable[str]) -> bool:

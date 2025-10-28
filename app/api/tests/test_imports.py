@@ -21,7 +21,7 @@ from ..models.domain import (
     SaleLine,
     Vendor,
 )
-from ..services.importer import NO_IMPORTABLE_ROWS_WARNING
+from ..services.importer import NO_IMPORTABLE_ROWS_WARNING, extract_datasets
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -391,4 +391,36 @@ async def test_import_returns_warning_when_no_importable_rows(client) -> None:
     assert payload["message"] == NO_IMPORTABLE_ROWS_WARNING
     assert payload["detail"] == NO_IMPORTABLE_ROWS_WARNING
     assert payload["counters"]["warnings"] == [NO_IMPORTABLE_ROWS_WARNING]
+
+
+def test_extract_datasets_uses_title_to_break_entity_ties() -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Vendor List"
+    sheet.append(["Name", "Email", "Phone"])
+    sheet.append(["Acme Furniture", "sales@acme.test", "555-0100"])
+
+    buffer = _save_workbook(workbook)
+    datasets = extract_datasets(buffer.getvalue(), "upload.xlsx")
+
+    assert "vendors" in datasets
+    assert len(datasets["vendors"]) == 1
+    assert datasets["vendors"][0]["name"] == "Acme Furniture"
+
+
+def test_extract_datasets_prefers_requested_entity_on_ties() -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Contacts"
+    sheet.append(["Name", "Email", "Phone"])
+    sheet.append(["Acme Furniture", "sales@acme.test", "555-0100"])
+
+    buffer = _save_workbook(workbook)
+    datasets = extract_datasets(
+        buffer.getvalue(), "upload.xlsx", preferred_entity="vendors"
+    )
+
+    assert "vendors" in datasets
+    assert len(datasets["vendors"]) == 1
+    assert datasets["vendors"][0]["name"] == "Acme Furniture"
 
