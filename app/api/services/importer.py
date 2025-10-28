@@ -30,9 +30,19 @@ NO_IMPORTABLE_ROWS_WARNING = "No importable rows were found in the spreadsheet."
 
 FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
     "products": {
-        "sku": {"sku", "product_sku", "item_sku", "item_number", "item_id"},
+        "sku": {
+            "sku",
+            "product_sku",
+            "item_sku",
+            "item_number",
+            "item_id",
+            "product_number",
+            "product_no",
+            "prod_number",
+            "prod_no",
+        },
         "description": {"description", "product_description", "name", "product_name", "item_name", "item_description"},
-        "category": {"category"},
+        "category": {"category", "brand", "product_brand", "brand_name"},
         "subcategory": {"subcategory", "sub_category"},
         "unit_cost": {"unit_cost", "cost", "cost_price"},
         "price": {"price", "retail", "sale_price", "unit_price"},
