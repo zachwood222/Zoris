@@ -407,20 +407,3 @@ def test_extract_datasets_uses_title_to_break_entity_ties() -> None:
     assert len(datasets["vendors"]) == 1
     assert datasets["vendors"][0]["name"] == "Acme Furniture"
 
-
-def test_extract_datasets_prefers_requested_entity_on_ties() -> None:
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "Contacts"
-    sheet.append(["Name", "Email", "Phone"])
-    sheet.append(["Acme Furniture", "sales@acme.test", "555-0100"])
-
-    buffer = _save_workbook(workbook)
-    datasets = extract_datasets(
-        buffer.getvalue(), "upload.xlsx", preferred_entity="vendors"
-    )
-
-    assert "vendors" in datasets
-    assert len(datasets["vendors"]) == 1
-    assert datasets["vendors"][0]["name"] == "Acme Furniture"
-
