@@ -49,6 +49,10 @@ const formatSummary = (summary: ImportSummary): string[] => {
     lines.push('Removed previous demo data.');
   }
 
+  if (summary.clearedInventory && !summary.clearedSampleData) {
+    lines.push('Cleared existing inventory records before import.');
+  }
+
   if (summary.detail) {
     lines.push(summary.detail);
   }
@@ -68,6 +72,7 @@ export default function DashboardImportForm(): JSX.Element {
   const [dataset, setDataset] = useState<string>(datasetOptions[0]?.value ?? 'products');
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>({ state: 'idle' });
+  const [replaceInventory, setReplaceInventory] = useState<boolean>(false);
 
   const summaryLines = useMemo(() => {
     if (status.state !== 'success') {
@@ -93,7 +98,14 @@ export default function DashboardImportForm(): JSX.Element {
       const headers = await buildAuthHeaders();
       const baseUrl = getApiBase();
       const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      const response = await fetch(`${base}/imports/spreadsheet?dataset=${encodeURIComponent(dataset)}`, {
+      const query = new URLSearchParams();
+      if (dataset) {
+        query.set('dataset', dataset);
+      }
+      if (dataset === 'products' && replaceInventory) {
+        query.set('replaceInventory', 'true');
+      }
+      const response = await fetch(`${base}/imports/spreadsheet?${query.toString()}`, {
         method: 'POST',
         body: formData,
         headers,
@@ -154,7 +166,11 @@ export default function DashboardImportForm(): JSX.Element {
           <select
             value={dataset}
             onChange={(event) => {
-              setDataset(event.target.value);
+              const selectedDataset = event.target.value;
+              setDataset(selectedDataset);
+              if (selectedDataset !== 'products') {
+                setReplaceInventory(false);
+              }
               setStatus({ state: 'idle' });
             }}
             className="block w-full rounded-md border border-slate-500/40 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
@@ -182,6 +198,25 @@ export default function DashboardImportForm(): JSX.Element {
             className="block w-full rounded-md border border-slate-500/40 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 file:mr-4 file:rounded-md file:border-0 file:bg-sky-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-sky-500"
           />
         </label>
+
+        {dataset === 'products' ? (
+          <label className="flex items-start gap-3 rounded-lg border border-slate-500/30 bg-slate-900/60 px-3 py-2 text-sm text-slate-200">
+            <input
+              type="checkbox"
+              checked={replaceInventory}
+              onChange={(event) => {
+                setReplaceInventory(event.target.checked);
+              }}
+              className="mt-1 h-4 w-4 rounded border-slate-500/60 bg-slate-800 text-sky-500 focus:ring-sky-500"
+            />
+            <span className="flex flex-col">
+              <span className="font-medium text-slate-100">Replace existing inventory</span>
+              <span className="text-xs text-slate-400">
+                Clear previous on-hand quantities before loading this product import so counts match the spreadsheet.
+              </span>
+            </span>
+          </label>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-3">
@@ -210,4 +245,3 @@ export default function DashboardImportForm(): JSX.Element {
     </form>
   );
 }
-

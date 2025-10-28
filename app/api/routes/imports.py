@@ -15,10 +15,21 @@ router = APIRouter(prefix="/imports", tags=["imports"])
 async def upload_spreadsheet(
     file: UploadFile = File(...),
     dataset: str | None = Query(default=None, description="Dataset to import"),
+    replace_inventory: bool = Query(
+        default=False,
+        alias="replaceInventory",
+        description="Clear existing inventory quantities before importing products",
+    ),
     session: AsyncSession = Depends(get_session),
 ) -> SpreadsheetImportResponse:
     data = await file.read()
-    result = await import_spreadsheet(session, data, file.filename, dataset=dataset)
+    result = await import_spreadsheet(
+        session,
+        data,
+        file.filename,
+        dataset=dataset,
+        replace_inventory=replace_inventory,
+    )
     counters = result.counters
     warnings = counters.warnings
 
@@ -37,6 +48,8 @@ async def upload_spreadsheet(
         message_parts.append(
             f"Processed {counters.purchase_orders} purchase order(s)"
         )
+    if result.cleared_inventory and not result.cleared_sample_data:
+        message_parts.append("Cleared previous inventory records")
     if not message_parts:
         if warnings:
             if warnings == [NO_IMPORTABLE_ROWS_WARNING]:
@@ -54,6 +67,7 @@ async def upload_spreadsheet(
         message=", ".join(message_parts),
         importedAt=result.imported_at,
         clearedSampleData=result.cleared_sample_data,
+        clearedInventory=result.cleared_inventory,
         counters={
             "vendors": counters.vendors,
             "locations": counters.locations,

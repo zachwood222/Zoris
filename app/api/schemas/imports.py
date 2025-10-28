@@ -42,6 +42,7 @@ class SpreadsheetImportResponse(BaseModel):
     message: str
     imported_at: datetime = Field(..., alias="importedAt")
     cleared_sample_data: bool = Field(False, alias="clearedSampleData")
+    cleared_inventory: bool = Field(False, alias="clearedInventory")
     counters: ImportCountersSchema
     detail: Optional[str] = None
 

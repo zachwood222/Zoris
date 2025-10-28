@@ -33,46 +33,51 @@ def _save_workbook(workbook: Workbook) -> io.BytesIO:
     return buffer
 
 
-def _build_products_workbook() -> Workbook:
+def _build_products_workbook(
+    rows: list[tuple[object, ...]] | None = None,
+) -> Workbook:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Products"
     sheet.append(
         [
-            "SKU",
+            "Product",
+            "Vendor Model",
             "Description",
-            "Price",
-            "Unit Cost",
+            "Descriptions 2",
+            "Vend",
+            "Type",
+            "Cost",
+            "Sell Price",
             "Qty On Hand",
-            "Location",
-            "Vendor Name",
-            "Barcode",
         ]
     )
-    sheet.append(
-        [
+    default_rows: list[tuple[object, ...]] = [
+        (
             "SOFA-001",
+            "ACME-SOFA-001",
             "Modern Sofa",
-            899.00,
+            "Gray Fabric",
+            "Acme Furniture",
+            "Seating",
             450.00,
+            899.00,
             4,
-            "Main Showroom",
-            "Acme Furniture",
-            "000111222333",
-        ]
-    )
-    sheet.append(
-        [
+        ),
+        (
             "LAMP-002",
+            "ACME-LAMP-002",
             "Brass Floor Lamp",
-            129.00,
-            60.00,
-            6,
-            "Lighting Aisle",
+            "Matte Finish",
             "Acme Furniture",
-            "000999888777",
-        ]
-    )
+            "Lighting",
+            60.00,
+            129.00,
+            6,
+        ),
+    ]
+    for row in rows or default_rows:
+        sheet.append(list(row))
     return workbook
 
 
@@ -191,8 +196,20 @@ def _build_blank_products_workbook() -> Workbook:
     sheet.append(["", "", ""])
     sheet.append([None, None, None])
     sheet.append(["Products", "for", "Import"])
-    sheet.append(["SKU", "Description", "Price"])
-    sheet.append(["TABLE-01", "Dining Table", 499.0])
+    sheet.append(
+        [
+            "Product",
+            "Vendor Model",
+            "Description",
+            "Descriptions 2",
+            "Vend",
+            "Type",
+            "Cost",
+            "Sell Price",
+            "Qty On Hand",
+        ]
+    )
+    sheet.append(["TABLE-01", "MAN-TABLE-01", "Dining Table", "Oak", "Metro", "Dining", 350.0, 499.0, 2])
     return workbook
 
 
@@ -203,14 +220,17 @@ async def test_import_products_and_customers(client) -> None:
 
     products_buffer = _save_workbook(_build_products_workbook())
     files = {"file": ("products.xlsx", products_buffer, XLSX_MIME)}
-    response = await client.post("/imports/spreadsheet?dataset=products", files=files)
+    response = await client.post(
+        "/imports/spreadsheet?dataset=products&replaceInventory=true", files=files
+    )
     assert response.status_code == 200
 
     payload = response.json()
     assert payload["counters"]["items"] == 2
     assert payload["counters"]["vendors"] == 1
-    assert payload["counters"]["locations"] == 2
+    assert payload["counters"]["locations"] == 1
     assert payload["counters"]["inventoryRecords"] == 2
+    assert payload["clearedInventory"] is True
 
     customers_buffer = _save_workbook(_build_customers_workbook())
     files = {"file": ("customers.xlsx", customers_buffer, XLSX_MIME)}
@@ -229,8 +249,56 @@ async def test_import_products_and_customers(client) -> None:
 
     assert item_count == 2
     assert customer_count == 2
-    assert location_names == {"Main Showroom", "Lighting Aisle"}
+    assert location_names == {"Main Warehouse"}
     assert {row.qty_on_hand for row in inventory_rows} == {4, 6}
+
+    async with SessionLocal() as session:
+        items = (await session.scalars(select(Item))).all()
+
+    descriptions = {item.sku: item.description for item in items}
+    assert descriptions["SOFA-001"] == "Modern Sofa - Gray Fabric"
+    assert descriptions["LAMP-002"] == "Brass Floor Lamp - Matte Finish"
+
+
+@pytest.mark.asyncio
+async def test_import_products_replaces_inventory_when_requested(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    products_buffer = _save_workbook(_build_products_workbook())
+    files = {"file": ("products.xlsx", products_buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=products", files=files)
+    assert response.status_code == 200
+
+    updated_rows = [
+        (
+            "SOFA-001",
+            "ACME-SOFA-001",
+            "Modern Sofa",
+            "Updated Upholstery",
+            "Acme Furniture",
+            "Seating",
+            475.00,
+            929.00,
+            8,
+        )
+    ]
+    updated_buffer = _save_workbook(_build_products_workbook(rows=updated_rows))
+    files = {"file": ("products-update.xlsx", updated_buffer, XLSX_MIME)}
+    response = await client.post(
+        "/imports/spreadsheet?dataset=products&replaceInventory=true", files=files
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["clearedInventory"] is True
+    assert payload["counters"]["items"] == 0
+    assert payload["counters"]["inventoryRecords"] == 1
+
+    async with SessionLocal() as session:
+        inventory_rows = (await session.scalars(select(Inventory))).all()
+
+    assert len(inventory_rows) == 1
+    assert float(inventory_rows[0].qty_on_hand) == 8.0
 
 
 @pytest.mark.asyncio
@@ -340,8 +408,30 @@ async def test_import_clears_sample_data(client) -> None:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Products"
-    sheet.append(["SKU", "Description", "Price"])
-    sheet.append(["NEW-ITEM", "Imported Item", 199.0])
+    sheet.append(
+        [
+            "Product",
+            "Vendor Model",
+            "Description",
+            "Descriptions 2",
+            "Vend",
+            "Type",
+            "Cost",
+            "Sell Price",
+            "Qty On Hand",
+        ]
+    )
+    sheet.append([
+        "NEW-ITEM",
+        "NEW-MODEL",
+        "Imported Item",
+        "",
+        "Acme",
+        "Seating",
+        120.0,
+        199.0,
+        0,
+    ])
 
     buffer = _save_workbook(workbook)
     files = {"file": ("fresh.xlsx", buffer, XLSX_MIME)}

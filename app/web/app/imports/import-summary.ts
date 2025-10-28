@@ -15,6 +15,7 @@ export type ImportSummary = {
   };
   importedAt: string;
   clearedSampleData: boolean;
+  clearedInventory: boolean;
 };
 
 const baseMockImportSummary: Omit<ImportSummary, 'importedAt'> = {
@@ -35,7 +36,8 @@ const baseMockImportSummary: Omit<ImportSummary, 'importedAt'> = {
       '3 item records were merged based on shared SKU and UPC matches.'
     ]
   },
-  clearedSampleData: true
+  clearedSampleData: true,
+  clearedInventory: false
 };
 
 export const createMockImportSummary = (): ImportSummary => ({
