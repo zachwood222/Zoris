@@ -15,6 +15,7 @@ from ..models.domain import (
     Location,
     POLine,
     PurchaseOrder,
+    Receiving,
     Vendor,
 )
 
@@ -202,3 +203,124 @@ async def test_receive_po_updates_inventory(client):
         )
         assert inventory is not None
         assert float(inventory.qty_on_hand) == pytest.approx(4)
+
+
+@pytest.mark.asyncio
+async def test_list_purchase_orders_returns_summary(client):
+    async with SessionLocal() as session:
+        vendor = Vendor(name="Summit Supply", terms=None, phone=None, email=None)
+        item_open = Item(
+            sku="BRD-2X6",
+            description="Pine Board 2x6",
+            unit_cost=Decimal("4.50"),
+            price=Decimal("9.00"),
+            short_code="PB26",
+        )
+        item_closed = Item(
+            sku="BRD-1X4",
+            description="Pine Board 1x4",
+            unit_cost=Decimal("2.00"),
+            price=Decimal("4.00"),
+            short_code="PB14",
+        )
+        po = PurchaseOrder(vendor=vendor, status="open", created_by="demo")
+        open_line = POLine(
+            po=po,
+            item=item_open,
+            description="Pine Board 2x6",
+            qty_ordered=Decimal("10"),
+            qty_received=Decimal("4"),
+            unit_cost=Decimal("4.50"),
+        )
+        closed_line = POLine(
+            po=po,
+            item=item_closed,
+            description="Pine Board 1x4",
+            qty_ordered=Decimal("5"),
+            qty_received=Decimal("5"),
+            unit_cost=Decimal("2.00"),
+        )
+        session.add_all([vendor, item_open, item_closed, po, open_line, closed_line])
+        await session.flush()
+        po_id = po.po_id
+        await session.commit()
+
+    response = await client.get("/po")
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, list)
+    assert len(payload) == 1
+    summary = payload[0]
+    assert summary["po_id"] == po_id
+    assert summary["total_lines"] == 2
+    assert summary["open_lines"] == 1
+    assert summary["received_lines"] == 1
+    assert summary["qty_ordered"] == pytest.approx(15)
+    assert summary["qty_received"] == pytest.approx(9)
+
+
+@pytest.mark.asyncio
+async def test_delete_po_requires_no_receivings(client):
+    async with SessionLocal() as session:
+        vendor = Vendor(name="Northwind", terms=None, phone=None, email=None)
+        item = Item(
+            sku="PANEL-1",
+            description="Wall Panel",
+            unit_cost=Decimal("8.00"),
+            price=Decimal("16.00"),
+            short_code="WP01",
+        )
+        po = PurchaseOrder(vendor=vendor, status="open", created_by="demo")
+        line = POLine(
+            po=po,
+            item=item,
+            description="Wall Panel",
+            qty_ordered=Decimal("12"),
+            qty_received=Decimal("0"),
+            unit_cost=Decimal("8.00"),
+        )
+        session.add_all([vendor, item, po, line])
+        await session.flush()
+        po_id = po.po_id
+        await session.commit()
+
+    delete_response = await client.delete(f"/po/{po_id}")
+    assert delete_response.status_code == 204
+
+    async with SessionLocal() as session:
+        deleted = await session.get(PurchaseOrder, po_id)
+        assert deleted is None
+
+    async with SessionLocal() as session:
+        vendor = Vendor(name="Evergreen", terms=None, phone=None, email=None)
+        item = Item(
+            sku="POST-4X4",
+            description="Fence Post 4x4",
+            unit_cost=Decimal("6.00"),
+            price=Decimal("12.00"),
+            short_code="FP44",
+        )
+        po = PurchaseOrder(vendor=vendor, status="open", created_by="demo")
+        session.add_all(
+            [
+                vendor,
+                item,
+                po,
+                POLine(
+                    po=po,
+                    item=item,
+                    description="Fence Post 4x4",
+                    qty_ordered=Decimal("6"),
+                    qty_received=Decimal("6"),
+                    unit_cost=Decimal("6.00"),
+                ),
+                Receiving(po=po, received_by="demo"),
+            ]
+        )
+        await session.flush()
+        protected_po_id = po.po_id
+        await session.commit()
+
+    protected_response = await client.delete(f"/po/{protected_po_id}")
+    assert protected_response.status_code == 400
+    assert protected_response.json()["detail"] == "po_has_receivings"

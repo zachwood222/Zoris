@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo } from 'react';
 
 import { fallbackDashboardSummary, type DashboardDrilldownItem } from '../../dashboard-summary-data';
@@ -12,7 +13,8 @@ function SectionShell({
   description,
   metric,
   items,
-  kicker
+  kicker,
+  cta
 }: {
   id: string;
   title: string;
@@ -20,6 +22,7 @@ function SectionShell({
   metric?: { value: string; change?: string; status?: string };
   items: DashboardDrilldownItem[];
   kicker: string;
+  cta?: { label: string; href: string };
 }) {
   return (
     <section
@@ -27,10 +30,18 @@ function SectionShell({
       className="scroll-mt-28 rounded-3xl border border-white/10 bg-slate-950/60 p-8 shadow-xl shadow-slate-950/30 backdrop-blur"
     >
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-3">
+        <div className="space-y-4">
           <p className="text-xs uppercase tracking-[0.35em] text-slate-400">{kicker}</p>
           <h2 className="text-3xl font-semibold text-white capitalize">{title}</h2>
           <p className="text-sm text-slate-300 lg:max-w-xl">{description}</p>
+          {cta ? (
+            <Link
+              href={cta.href}
+              className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-400/40 bg-sky-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-sky-100 transition hover:border-sky-300/60 hover:bg-sky-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+            >
+              {cta.label}
+            </Link>
+          ) : null}
         </div>
         {metric ? (
           <div className="flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-right">
@@ -149,6 +160,7 @@ export default function DashboardAnalyticsClient() {
             }
             items={items}
             kicker={section.kicker}
+            cta={section.cta}
           />
         );
       })}

@@ -5,9 +5,9 @@ import re
 
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
@@ -25,9 +25,76 @@ from ..models.domain import (
 )
 from ..security import User, require_roles
 from ..utils.datetime import utc_now
-from ..schemas.po import POLineSearchResult
+from ..schemas.po import POLineSearchResult, PurchaseOrderSummary
 
 router = APIRouter()
+
+
+@router.get("", response_model=list[PurchaseOrderSummary])
+async def list_purchase_orders(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_roles("Purchasing", "Admin")),
+) -> list[PurchaseOrderSummary]:
+    remaining_qty = func.coalesce(POLine.qty_ordered, 0) - func.coalesce(
+        POLine.qty_received, 0
+    )
+    open_line_case = case((remaining_qty > 0, 1), else_=0)
+    received_line_case = case(
+        (
+            func.coalesce(POLine.qty_received, 0)
+            >= func.coalesce(POLine.qty_ordered, 0),
+            1,
+        ),
+        else_=0,
+    )
+
+    stmt = (
+        select(
+            PurchaseOrder.po_id,
+            PurchaseOrder.status,
+            PurchaseOrder.expected_date,
+            PurchaseOrder.notes,
+            Vendor.name.label("vendor_name"),
+            func.count(POLine.po_line_id).label("total_lines"),
+            func.coalesce(func.sum(open_line_case), 0).label("open_lines"),
+            func.coalesce(func.sum(received_line_case), 0).label("received_lines"),
+            func.coalesce(func.sum(POLine.qty_ordered), 0).label("qty_ordered"),
+            func.coalesce(func.sum(func.coalesce(POLine.qty_received, 0)), 0).label(
+                "qty_received"
+            ),
+        )
+        .join(Vendor, Vendor.vendor_id == PurchaseOrder.vendor_id, isouter=True)
+        .join(POLine, POLine.po_id == PurchaseOrder.po_id, isouter=True)
+        .group_by(
+            PurchaseOrder.po_id,
+            PurchaseOrder.status,
+            PurchaseOrder.expected_date,
+            PurchaseOrder.notes,
+            Vendor.name,
+        )
+        .order_by(PurchaseOrder.po_id.desc())
+        .limit(100)
+    )
+
+    rows = (await session.execute(stmt)).all()
+    summaries: list[PurchaseOrderSummary] = []
+    for row in rows:
+        summaries.append(
+            PurchaseOrderSummary(
+                po_id=row.po_id,
+                status=row.status,
+                vendor_name=row.vendor_name,
+                expected_date=row.expected_date,
+                total_lines=int(row.total_lines or 0),
+                open_lines=int(row.open_lines or 0),
+                received_lines=int(row.received_lines or 0),
+                qty_ordered=float(row.qty_ordered or 0),
+                qty_received=float(row.qty_received or 0),
+                notes=row.notes,
+            )
+        )
+
+    return summaries
 
 
 class POLinePayload(BaseModel):
@@ -115,6 +182,27 @@ async def update_po(po_id: int, payload: dict, session: AsyncSession = Depends(g
         setattr(po, key, value)
     await session.flush()
     return {"po_id": po.po_id, "status": po.status}
+
+
+@router.delete("/{po_id}", status_code=204)
+async def delete_po(
+    po_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_roles("Purchasing", "Admin")),
+) -> Response:
+    po = await session.get(PurchaseOrder, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="not_found")
+
+    receiving_count = await session.scalar(
+        select(func.count(Receiving.receipt_id)).where(Receiving.po_id == po_id)
+    )
+    if receiving_count and receiving_count > 0:
+        raise HTTPException(status_code=400, detail="po_has_receivings")
+
+    await session.delete(po)
+    await session.flush()
+    return Response(status_code=204)
 
 
 @router.get("/lookup/{code}", response_model=list[POLineLookupResponse])

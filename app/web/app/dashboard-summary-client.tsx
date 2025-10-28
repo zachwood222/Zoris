@@ -36,7 +36,7 @@ export function DashboardMetrics() {
   const metricDestinations: Record<string, string> = {
     'Open Sales': '/dashboard/analytics#open-sales',
     'Draft OCR Tickets': '/dashboard/analytics#draft-ocr-tickets',
-    'Inbound Purchase Orders': '/dashboard/analytics#inbound-purchase-orders',
+    'Inbound Purchase Orders': '/dashboard/purchase-orders',
     'Active Receivers': '/dashboard/analytics#active-receivers'
   };
 
