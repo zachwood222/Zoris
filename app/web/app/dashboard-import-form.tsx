@@ -57,6 +57,15 @@ const formatSummary = (summary: ImportSummary): string[] => {
 };
 
 export default function DashboardImportForm(): JSX.Element {
+  const datasetOptions: { value: string; label: string }[] = [
+    { value: 'products', label: 'Products' },
+    { value: 'customers', label: 'Customers' },
+    { value: 'vendors', label: 'Vendors' },
+    { value: 'orders', label: 'Sales orders' },
+    { value: 'purchase_orders', label: 'Purchase orders' }
+  ];
+
+  const [dataset, setDataset] = useState<string>(datasetOptions[0]?.value ?? 'products');
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>({ state: 'idle' });
 
@@ -71,7 +80,7 @@ export default function DashboardImportForm(): JSX.Element {
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!file) {
-      setStatus({ state: 'error', message: 'Select an XLSX workbook to import.' });
+      setStatus({ state: 'error', message: 'Select an XLSX workbook for the chosen dataset.' });
       return;
     }
 
@@ -84,7 +93,7 @@ export default function DashboardImportForm(): JSX.Element {
       const headers = await buildAuthHeaders();
       const baseUrl = getApiBase();
       const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      const response = await fetch(`${base}/imports/spreadsheet`, {
+      const response = await fetch(`${base}/imports/spreadsheet?dataset=${encodeURIComponent(dataset)}`, {
         method: 'POST',
         body: formData,
         headers,
@@ -134,12 +143,29 @@ export default function DashboardImportForm(): JSX.Element {
           </span>
           <h3 className="text-lg font-semibold text-white">Import spreadsheet</h3>
           <p className="text-sm text-slate-300">
-            Upload an XLSX workbook that includes{' '}
-            <strong>Products</strong>, <strong>Customers</strong>, <strong>Orders</strong>, and{' '}
-            <strong>Purchase Orders</strong> sheets. We will clean the data, replace the demo fixtures, and load it into the live
-            tables.
+            Upload a clean XLSX export for a single dataset at a time. Select which records you are importing, attach the
+            matching workbook, and we will normalise headers, replace demo fixtures for product imports, and load the data into the
+            live tables.
           </p>
         </div>
+
+        <label className="flex flex-col gap-2 text-sm text-slate-200">
+          <span className="font-medium text-slate-100">Dataset</span>
+          <select
+            value={dataset}
+            onChange={(event) => {
+              setDataset(event.target.value);
+              setStatus({ state: 'idle' });
+            }}
+            className="block w-full rounded-md border border-slate-500/40 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
+          >
+            {datasetOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <label className="flex flex-col gap-2 text-sm text-slate-200">
           <span className="font-medium text-slate-100">Spreadsheet file</span>
