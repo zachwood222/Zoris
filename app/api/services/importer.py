@@ -57,20 +57,7 @@ FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
             "quantity_on_hand",
             "stock_on_hand",
         },
-        "location_name": {
-            "location",
-            "location_name",
-            "warehouse",
-            "store",
-            "site",
-            "warehouse_location",
-            "warehouse_loc",
-            "whse_locn",
-            "storage_location",
-            "storage_locn",
-            "stock_location",
-            "bin_location",
-        },
+        "location_name": {"location", "location_name", "warehouse", "store", "site"},
         "vendor_name": {"vendor", "vendor_name"},
     },
     "customers": {
@@ -902,20 +889,11 @@ def _identify_entity(
         return None
 
     best_score = max(scored_entities.values())
-
-    if preferred_entity:
-        preferred_score = scored_entities.get(preferred_entity)
-        if preferred_score:
-            return preferred_entity
-
     best_entities = [
         entity for entity, score in scored_entities.items() if score == best_score
     ]
     if len(best_entities) == 1:
         return best_entities[0]
-
-    if preferred_entity and preferred_entity in best_entities:
-        return preferred_entity
 
     title_matches = [
         entity
