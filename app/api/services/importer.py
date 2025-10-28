@@ -126,7 +126,7 @@ async def import_spreadsheet(
             detail=f"Unsupported dataset '{dataset}'.",
         )
 
-    datasets = extract_datasets(data, filename)
+    datasets = extract_datasets(data, filename, preferred_entity=dataset_key)
     counters = ImportCounters()
 
     if dataset_key is not None:
@@ -769,7 +769,9 @@ async def _ensure_customer(
     return customer
 
 
-def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any]]]:
+def extract_datasets(
+    data: bytes, filename: str, preferred_entity: str | None = None
+) -> dict[str, list[dict[str, Any]]]:
     if not filename.lower().endswith(".xlsx"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -805,7 +807,9 @@ def extract_datasets(data: bytes, filename: str) -> dict[str, list[dict[str, Any
         if headers is None:
             continue
 
-        entity_key = _identify_entity(worksheet.title, normalised_headers)
+        entity_key = _identify_entity(
+            worksheet.title, normalised_headers, preferred_entity=preferred_entity
+        )
         if entity_key is None:
             continue
 
@@ -850,7 +854,9 @@ def _resolve_field(aliases: Mapping[str, set[str]], header: str) -> str | None:
     return None
 
 
-def _identify_entity(title: str, headers: Iterable[str]) -> str | None:
+def _identify_entity(
+    title: str, headers: Iterable[str], preferred_entity: str | None = None
+) -> str | None:
     normalised_title = _normalise_header(title)
     if normalised_title in SUPPORTED_SHEETS:
         return normalised_title
