@@ -45,6 +45,7 @@ def _format_counter_lines(counters: ImportCounters) -> list[str]:
 def _print_summary(
     filename: str,
     cleared_demo: bool,
+    cleared_inventory: bool,
     counters: ImportCounters,
     warnings: Iterable[str],
     imported_at: datetime,
@@ -61,6 +62,8 @@ def _print_summary(
 
     if cleared_demo:
         print("Cleared existing demo/sample data before importing")
+    elif cleared_inventory:
+        print("Cleared existing inventory records before importing")
 
     if warnings:
         print("Warnings:")
@@ -73,7 +76,8 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Import XLSX workbooks for specific operational datasets such as products, "
             "customers, vendors, sales orders, or purchase orders. Products imports clear "
-            "demo fixtures before loading new data."
+            "demo fixtures before loading new data and can optionally replace existing "
+            "inventory quantities."
         )
     )
     parser.add_argument(
@@ -93,14 +97,30 @@ def build_parser() -> argparse.ArgumentParser:
             "a multi-sheet workbook."
         ),
     )
+    parser.add_argument(
+        "--replace-inventory",
+        action="store_true",
+        help=(
+            "Clear existing inventory records before importing products so quantities "
+            "match the latest spreadsheet."
+        ),
+    )
     return parser
 
 
-async def _run_import(path: Path, dry_run: bool, dataset: str | None) -> ImportResult:
+async def _run_import(
+    path: Path, dry_run: bool, dataset: str | None, replace_inventory: bool
+) -> ImportResult:
     data = path.read_bytes()
     async with SessionLocal() as session:
         try:
-            result = await import_spreadsheet(session, data, path.name, dataset=dataset)
+            result = await import_spreadsheet(
+                session,
+                data,
+                path.name,
+                dataset=dataset,
+                replace_inventory=replace_inventory,
+            )
             if dry_run:
                 await session.rollback()
             else:
@@ -124,7 +144,9 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"Spreadsheet file not found: {path}")
 
     try:
-        result = asyncio.run(_run_import(path, args.dry_run, args.dataset))
+        result = asyncio.run(
+            _run_import(path, args.dry_run, args.dataset, args.replace_inventory)
+        )
     except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -132,7 +154,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Unexpected error: {exc}", file=sys.stderr)
         return 1
 
-    _print_summary(path.name, result.cleared_sample_data, result.counters, result.counters.warnings, result.imported_at)
+    _print_summary(
+        path.name,
+        result.cleared_sample_data,
+        result.cleared_inventory,
+        result.counters,
+        result.counters.warnings,
+        result.imported_at,
+    )
     if args.dry_run:
         print("Dry-run requested; no changes were committed.")
     return 0

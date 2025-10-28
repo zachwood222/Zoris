@@ -40,12 +40,14 @@ FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
             "product_no",
             "prod_number",
             "prod_no",
+            "product",
         },
         "description": {"description", "product_description", "name", "product_name", "item_name", "item_description"},
-        "category": {"category", "brand", "product_brand", "brand_name"},
+        "description_secondary": {"description_2", "descriptions_2"},
+        "category": {"category", "brand", "product_brand", "brand_name", "type"},
         "subcategory": {"subcategory", "sub_category"},
         "unit_cost": {"unit_cost", "cost", "cost_price"},
-        "price": {"price", "retail", "sale_price", "unit_price"},
+        "price": {"price", "retail", "sale_price", "unit_price", "sell_price"},
         "tax_code": {"tax_code"},
         "barcode": {"barcode", "upc", "upc_code"},
         "qty_on_hand": {
@@ -58,7 +60,8 @@ FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
             "stock_on_hand",
         },
         "location_name": {"location", "location_name", "warehouse", "store", "site"},
-        "vendor_name": {"vendor", "vendor_name"},
+        "vendor_name": {"vendor", "vendor_name", "vend"},
+        "vendor_model": {"vendor_model"},
     },
     "customers": {
         "name": {"name", "customer_name", "full_name", "customer_full_name"},
@@ -132,10 +135,16 @@ class ImportResult:
     counters: ImportCounters
     cleared_sample_data: bool
     imported_at: datetime
+    cleared_inventory: bool = False
 
 
 async def import_spreadsheet(
-    session: AsyncSession, data: bytes, filename: str, dataset: str | None = None
+    session: AsyncSession,
+    data: bytes,
+    filename: str,
+    dataset: str | None = None,
+    *,
+    replace_inventory: bool = False,
 ) -> ImportResult:
     dataset_key = dataset.lower() if dataset else None
     if dataset_key is not None and dataset_key not in SUPPORTED_SHEETS:
@@ -154,6 +163,7 @@ async def import_spreadsheet(
                 counters=counters,
                 cleared_sample_data=False,
                 imported_at=utc_now(),
+                cleared_inventory=False,
             )
     elif not any(datasets.get(name) for name in SUPPORTED_SHEETS):
         counters.warnings.append(NO_IMPORTABLE_ROWS_WARNING)
@@ -161,9 +171,11 @@ async def import_spreadsheet(
             counters=counters,
             cleared_sample_data=False,
             imported_at=utc_now(),
+            cleared_inventory=False,
         )
 
     should_clear_demo = dataset_key in (None, "products")
+    inventory_cleared = False
     cleared_demo = False
     vendor_index: dict[str, domain.Vendor]
     location_index: dict[str, domain.Location]
@@ -173,6 +185,9 @@ async def import_spreadsheet(
 
     if should_clear_demo:
         cleared_demo = await _clear_existing_data(session)
+
+    if cleared_demo:
+        inventory_cleared = True
         vendor_index = {}
         location_index = {}
         existing_items = {}
@@ -184,6 +199,10 @@ async def import_spreadsheet(
         location_index = await _load_location_index(session)
         existing_items, short_codes_in_use = await _load_item_index(session)
         customers_index = await _load_customer_index(session)
+
+        if replace_inventory and dataset_key in (None, "products"):
+            await _clear_inventory(session)
+            inventory_cleared = True
 
     vendor_rows: Iterable[Mapping[str, Any]]
     if dataset_key in (None, "vendors"):
@@ -208,8 +227,8 @@ async def import_spreadsheet(
             counters,
             vendor_index,
             location_index,
-            existing_items=existing_items if not should_clear_demo else None,
-            short_codes=short_codes_in_use if not should_clear_demo else None,
+            existing_items=existing_items if not cleared_demo else None,
+            short_codes=short_codes_in_use if not cleared_demo else None,
         )
 
     customer_rows: Iterable[Mapping[str, Any]]
@@ -251,6 +270,7 @@ async def import_spreadsheet(
         counters=counters,
         cleared_sample_data=cleared_demo,
         imported_at=utc_now(),
+        cleared_inventory=inventory_cleared,
     )
 
 
@@ -335,8 +355,15 @@ async def _import_products(
         short_codes_in_use = {item.short_code for item in items.values()}
 
     for row in rows:
-        sku = _coerce_str(row.get("sku"))
+        vendor_model = _coerce_str(row.get("vendor_model"))
+        sku = _coerce_str(row.get("sku")) or vendor_model
         description = _coerce_str(row.get("description"))
+        secondary_description = _coerce_str(row.get("description_secondary"))
+        if secondary_description:
+            if description:
+                description = f"{description} - {secondary_description}"
+            else:
+                description = secondary_description
         if not sku or not description:
             counters.warnings.append("Skipped product row without SKU and description")
             continue
@@ -646,7 +673,8 @@ async def _clear_existing_data(session: AsyncSession) -> bool:
     demo_vendor = await session.scalar(
         select(domain.Vendor.vendor_id).where(domain.Vendor.name == "Demo Furnishings")
     )
-    cleared_demo = bool(demo_items or demo_vendor)
+    if not demo_items and not demo_vendor:
+        return False
 
     models_in_delete_order = [
         domain.IncomingTruckUpdate,
@@ -671,7 +699,13 @@ async def _clear_existing_data(session: AsyncSession) -> bool:
 
     await session.flush()
 
-    return cleared_demo
+    return True
+
+
+async def _clear_inventory(session: AsyncSession) -> None:
+    await session.execute(delete(domain.InventoryTxn))
+    await session.execute(delete(domain.Inventory))
+    await session.flush()
 
 
 async def _ensure_schema() -> None:
