@@ -21,7 +21,7 @@ from ..models.domain import (
     SaleLine,
     Vendor,
 )
-from ..services.importer import NO_IMPORTABLE_ROWS_WARNING
+from ..services.importer import NO_IMPORTABLE_ROWS_WARNING, extract_datasets
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -391,4 +391,114 @@ async def test_import_returns_warning_when_no_importable_rows(client) -> None:
     assert payload["message"] == NO_IMPORTABLE_ROWS_WARNING
     assert payload["detail"] == NO_IMPORTABLE_ROWS_WARNING
     assert payload["counters"]["warnings"] == [NO_IMPORTABLE_ROWS_WARNING]
+
+
+def test_extract_datasets_uses_title_to_break_entity_ties() -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Vendor List"
+    sheet.append(["Name", "Email", "Phone"])
+    sheet.append(["Acme Furniture", "sales@acme.test", "555-0100"])
+
+    buffer = _save_workbook(workbook)
+    datasets = extract_datasets(buffer.getvalue(), "upload.xlsx")
+
+    assert "vendors" in datasets
+    assert len(datasets["vendors"]) == 1
+    assert datasets["vendors"][0]["name"] == "Acme Furniture"
+
+
+def test_extract_datasets_prefers_requested_entity_on_ties() -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Contacts"
+    sheet.append(["Name", "Email", "Phone"])
+    sheet.append(["Acme Furniture", "sales@acme.test", "555-0100"])
+
+    buffer = _save_workbook(workbook)
+    datasets = extract_datasets(
+        buffer.getvalue(), "upload.xlsx", preferred_entity="vendors"
+    )
+
+    assert "vendors" in datasets
+    assert len(datasets["vendors"]) == 1
+    assert datasets["vendors"][0]["name"] == "Acme Furniture"
+
+
+def test_extract_datasets_prefers_requested_entity_when_outscored() -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Supplier Catalog"
+    sheet.append(["Vendor Name", "SKU", "Description", "Price"])
+    sheet.append(["Acme Furniture", "SOFA-001", "Modern Sofa", 899.0])
+
+    buffer = _save_workbook(workbook)
+    datasets = extract_datasets(
+        buffer.getvalue(), "upload.xlsx", preferred_entity="vendors"
+    )
+
+    assert "vendors" in datasets
+    assert len(datasets["vendors"]) == 1
+    assert datasets["vendors"][0]["name"] == "Acme Furniture"
+
+
+def test_extract_datasets_handles_required_suffixes_and_variants() -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Customers"
+    sheet.append([
+        "Full Name (Required)",
+        "Customer Email Address",
+        "Phone Number",
+    ])
+    sheet.append(["Jamie Smith", "jamie@example.com", "555-0100"])
+
+    buffer = _save_workbook(workbook)
+    datasets = extract_datasets(
+        buffer.getvalue(), "customers.xlsx", preferred_entity="customers"
+    )
+
+    assert "customers" in datasets
+    assert datasets["customers"][0]["name"] == "Jamie Smith"
+    assert datasets["customers"][0]["email"] == "jamie@example.com"
+    assert datasets["customers"][0]["phone"] == "555-0100"
+
+
+def test_extract_datasets_handles_vendor_contact_variants() -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Supplier Contacts"
+    sheet.append(
+        [
+            "Company Name",
+            "Contact Email",
+            "Contact Phone",
+            "Address1",
+            "Address2",
+            "State/Province",
+        ]
+    )
+    sheet.append(
+        [
+            "Metro Lighting",
+            "contact@metro.test",
+            "555-0112",
+            "99 Industrial Way",
+            "Suite 200",
+            "OH",
+        ]
+    )
+
+    buffer = _save_workbook(workbook)
+    datasets = extract_datasets(
+        buffer.getvalue(), "vendors.xlsx", preferred_entity="vendors"
+    )
+
+    assert "vendors" in datasets
+    assert datasets["vendors"][0]["name"] == "Metro Lighting"
+    assert datasets["vendors"][0]["email"] == "contact@metro.test"
+    assert datasets["vendors"][0]["phone"] == "555-0112"
+    assert datasets["vendors"][0]["address_line1"] == "99 Industrial Way"
+    assert datasets["vendors"][0]["address_line2"] == "Suite 200"
+    assert datasets["vendors"][0]["state"] == "OH"
 
