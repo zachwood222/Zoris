@@ -6,6 +6,10 @@ export type AnalyticsSection = {
   title: string;
   description: string;
   kicker: string;
+  cta?: {
+    label: string;
+    href: string;
+  };
 };
 
 export const analyticsSections: AnalyticsSection[] = [
@@ -28,7 +32,11 @@ export const analyticsSections: AnalyticsSection[] = [
     metricLabel: 'Inbound Purchase Orders',
     title: 'Inbound purchase orders',
     description: 'Loads on the road or at the dock that are tied to open purchase orders.',
-    kicker: 'Inbound logistics'
+    kicker: 'Inbound logistics',
+    cta: {
+      label: 'Open purchase order dashboard',
+      href: '/dashboard/purchase-orders'
+    }
   },
   {
     id: 'activeReceivers',
