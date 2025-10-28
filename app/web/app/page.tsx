@@ -61,7 +61,7 @@ const quickActionGroups = [
       {
         href: '/imports/spreadsheet',
         label: 'Import spreadsheet',
-        description: 'Clean spreadsheets and load vendor, item, and customer data.',
+        description: 'Upload dataset-specific spreadsheets to sync vendors, items, and orders.',
         icon: '📥'
       },
       {

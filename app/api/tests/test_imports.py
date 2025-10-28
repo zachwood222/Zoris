@@ -1,4 +1,7 @@
 import io
+import os
+
+os.environ['DATABASE_URL'] = 'sqlite+aiosqlite:///./test.db'
 
 import pytest
 from openpyxl import Workbook
@@ -7,15 +10,34 @@ from sqlalchemy import func, select
 from .. import sample_data
 from ..db import SessionLocal, engine
 from ..models.base import Base
-from ..models.domain import Customer, Inventory, Item, Location, POLine, PurchaseOrder, Sale, SaleLine
+from ..models.domain import (
+    Customer,
+    Inventory,
+    Item,
+    Location,
+    POLine,
+    PurchaseOrder,
+    Sale,
+    SaleLine,
+    Vendor,
+)
 from ..services.importer import NO_IMPORTABLE_ROWS_WARNING
 
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-def _build_workbook() -> Workbook:
+
+def _save_workbook(workbook: Workbook) -> io.BytesIO:
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def _build_products_workbook() -> Workbook:
     workbook = Workbook()
-    products_sheet = workbook.active
-    products_sheet.title = "Products"
-    products_sheet.append(
+    sheet = workbook.active
+    sheet.title = "Products"
+    sheet.append(
         [
             "SKU",
             "Description",
@@ -27,7 +49,7 @@ def _build_workbook() -> Workbook:
             "Barcode",
         ]
     )
-    products_sheet.append(
+    sheet.append(
         [
             "SOFA-001",
             "Modern Sofa",
@@ -39,7 +61,7 @@ def _build_workbook() -> Workbook:
             "000111222333",
         ]
     )
-    products_sheet.append(
+    sheet.append(
         [
             "LAMP-002",
             "Brass Floor Lamp",
@@ -51,12 +73,126 @@ def _build_workbook() -> Workbook:
             "000999888777",
         ]
     )
+    return workbook
 
-    customers_sheet = workbook.create_sheet("Customers")
-    customers_sheet.append(["Name", "Email", "Phone"])
-    customers_sheet.append(["Jamie Smith", "jamie@example.com", "555-0100"])
-    customers_sheet.append(["Chris Doe", "", "555-0101"])
 
+def _build_customers_workbook() -> Workbook:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Customers"
+    sheet.append(["Name", "Email", "Phone"])
+    sheet.append(["Jamie Smith", "jamie@example.com", "555-0100"])
+    sheet.append(["Chris Doe", "", "555-0101"])
+    return workbook
+
+
+def _build_orders_workbook() -> Workbook:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Orders"
+    sheet.append(
+        [
+            "Order Number",
+            "Customer Email",
+            "Customer Name",
+            "Item SKU",
+            "Qty",
+            "Unit Price",
+            "Status",
+        ]
+    )
+    sheet.append(
+        [
+            "ORDER-10",
+            "jamie@example.com",
+            "Jamie Smith",
+            "SOFA-001",
+            1,
+            899.00,
+            "Open",
+        ]
+    )
+    return workbook
+
+
+def _build_purchase_orders_workbook() -> Workbook:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Purchase Orders"
+    sheet.append(
+        [
+            "PO Number",
+            "Vendor Name",
+            "Item SKU",
+            "Qty Ordered",
+            "Unit Cost",
+        ]
+    )
+    sheet.append([
+        "PO-50",
+        "Acme Furniture",
+        "SOFA-001",
+        2,
+        450.00,
+    ])
+    return workbook
+
+
+def _build_vendors_workbook() -> Workbook:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Vendors"
+    sheet.append(
+        [
+            "Vendor Name",
+            "Email",
+            "Phone",
+            "Address",
+            "City",
+            "State",
+            "Postal Code",
+            "Country",
+            "Terms",
+        ]
+    )
+    sheet.append(
+        [
+            "Acme Furniture",
+            "hello@acme.test",
+            "555-0111",
+            "123 Market St",
+            "Springfield",
+            "IL",
+            "62701",
+            "USA",
+            "Net 30",
+        ]
+    )
+    sheet.append(
+        [
+            "Metro Lighting",
+            "contact@metro.test",
+            "555-0112",
+            "99 Industrial Way",
+            "Columbus",
+            "OH",
+            "43004",
+            "USA",
+            "Prepaid",
+        ]
+    )
+    return workbook
+
+
+def _build_blank_products_workbook() -> Workbook:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Products"
+    sheet.append(["", "", ""])
+    sheet.append([None, None, None])
+    sheet.append(["Products", "for", "Import"])
+    sheet.append(["SKU", "Description", "Price"])
+    sheet.append(["TABLE-01", "Dining Table", 499.0])
     return workbook
 
 
@@ -65,21 +201,25 @@ async def test_import_products_and_customers(client) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
-    workbook = _build_workbook()
-    buffer = io.BytesIO()
-    workbook.save(buffer)
-    buffer.seek(0)
-
-    files = {"file": ("import.xlsx", buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-    response = await client.post("/imports/spreadsheet", files=files)
+    products_buffer = _save_workbook(_build_products_workbook())
+    files = {"file": ("products.xlsx", products_buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=products", files=files)
     assert response.status_code == 200
 
     payload = response.json()
     assert payload["counters"]["items"] == 2
-    assert payload["counters"]["customers"] == 2
     assert payload["counters"]["vendors"] == 1
     assert payload["counters"]["locations"] == 2
     assert payload["counters"]["inventoryRecords"] == 2
+
+    customers_buffer = _save_workbook(_build_customers_workbook())
+    files = {"file": ("customers.xlsx", customers_buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=customers", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["counters"]["customers"] == 2
+    assert payload["clearedSampleData"] is False
 
     async with SessionLocal() as session:
         item_count = await session.scalar(select(func.count(Item.item_id)))
@@ -94,25 +234,47 @@ async def test_import_products_and_customers(client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_import_vendors_only(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    vendors_buffer = _save_workbook(_build_vendors_workbook())
+    files = {"file": ("vendors.xlsx", vendors_buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=vendors", files=files)
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["counters"]["vendors"] == 2
+
+    update_workbook = Workbook()
+    sheet = update_workbook.active
+    sheet.title = "Vendors"
+    sheet.append(["Vendor Name", "Email", "Phone"])
+    sheet.append(["Acme Furniture", "accounts@acme.test", "555-0222"])
+    update_buffer = _save_workbook(update_workbook)
+    files = {"file": ("vendors-update.xlsx", update_buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=vendors", files=files)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["counters"]["vendors"] == 0
+
+    async with SessionLocal() as session:
+        vendors = (await session.scalars(select(Vendor))).all()
+
+    assert len(vendors) == 2
+    vendor_lookup = {vendor.name: vendor for vendor in vendors}
+    assert vendor_lookup["Acme Furniture"].email == "accounts@acme.test"
+    assert vendor_lookup["Acme Furniture"].phone == "555-0222"
+
+
+@pytest.mark.asyncio
 async def test_import_ignores_leading_blank_rows(client) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
-    workbook = Workbook()
-    products_sheet = workbook.active
-    products_sheet.title = "Products"
-    products_sheet.append(["", "", ""])
-    products_sheet.append([None, None, None])
-    products_sheet.append(["Products", "for", "Import"])  # header-like note row
-    products_sheet.append(["SKU", "Description", "Price"])
-    products_sheet.append(["TABLE-01", "Dining Table", 499.0])
-
-    buffer = io.BytesIO()
-    workbook.save(buffer)
-    buffer.seek(0)
-
-    files = {"file": ("blanks.xlsx", buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-    response = await client.post("/imports/spreadsheet", files=files)
+    buffer = _save_workbook(_build_blank_products_workbook())
+    files = {"file": ("blanks.xlsx", buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=products", files=files)
     assert response.status_code == 200
 
     payload = response.json()
@@ -124,58 +286,27 @@ async def test_import_orders_and_purchase_orders(client) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
-    workbook = _build_workbook()
-    orders_sheet = workbook.create_sheet("Orders")
-    orders_sheet.append(
-        [
-            "Order Number",
-            "Customer Email",
-            "Customer Name",
-            "Item SKU",
-            "Qty",
-            "Unit Price",
-            "Status",
-        ]
-    )
-    orders_sheet.append(
-        [
-            "ORDER-10",
-            "jamie@example.com",
-            "Jamie Smith",
-            "SOFA-001",
-            1,
-            899.00,
-            "Open",
-        ]
-    )
+    products_buffer = _save_workbook(_build_products_workbook())
+    files = {"file": ("products.xlsx", products_buffer, XLSX_MIME)}
+    await client.post("/imports/spreadsheet?dataset=products", files=files)
 
-    po_sheet = workbook.create_sheet("Purchase Orders")
-    po_sheet.append([
-        "PO Number",
-        "Vendor Name",
-        "Item SKU",
-        "Qty Ordered",
-        "Unit Cost",
-    ])
-    po_sheet.append([
-        "PO-50",
-        "Acme Furniture",
-        "SOFA-001",
-        2,
-        450.00,
-    ])
+    customers_buffer = _save_workbook(_build_customers_workbook())
+    files = {"file": ("customers.xlsx", customers_buffer, XLSX_MIME)}
+    await client.post("/imports/spreadsheet?dataset=customers", files=files)
 
-    buffer = io.BytesIO()
-    workbook.save(buffer)
-    buffer.seek(0)
-
-    files = {"file": ("orders.xlsx", buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-    response = await client.post("/imports/spreadsheet", files=files)
+    orders_buffer = _save_workbook(_build_orders_workbook())
+    files = {"file": ("orders.xlsx", orders_buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=orders", files=files)
     assert response.status_code == 200
+    assert response.json()["counters"]["sales"] == 1
 
-    payload = response.json()
-    assert payload["counters"]["sales"] == 1
-    assert payload["counters"]["purchaseOrders"] == 1
+    po_buffer = _save_workbook(_build_purchase_orders_workbook())
+    files = {"file": ("po.xlsx", po_buffer, XLSX_MIME)}
+    response = await client.post(
+        "/imports/spreadsheet?dataset=purchase_orders", files=files
+    )
+    assert response.status_code == 200
+    assert response.json()["counters"]["purchaseOrders"] == 1
 
     async with SessionLocal() as session:
         sale = await session.scalar(select(Sale).where(Sale.external_ref == "ORDER-10"))
@@ -207,17 +338,14 @@ async def test_import_clears_sample_data(client) -> None:
     await sample_data.apply()
 
     workbook = Workbook()
-    products_sheet = workbook.active
-    products_sheet.title = "Products"
-    products_sheet.append(["SKU", "Description", "Price"])
-    products_sheet.append(["NEW-ITEM", "Imported Item", 199.0])
+    sheet = workbook.active
+    sheet.title = "Products"
+    sheet.append(["SKU", "Description", "Price"])
+    sheet.append(["NEW-ITEM", "Imported Item", 199.0])
 
-    buffer = io.BytesIO()
-    workbook.save(buffer)
-    buffer.seek(0)
-
-    files = {"file": ("fresh.xlsx", buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-    response = await client.post("/imports/spreadsheet", files=files)
+    buffer = _save_workbook(workbook)
+    files = {"file": ("fresh.xlsx", buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=products", files=files)
     assert response.status_code == 200
 
     payload = response.json()
@@ -253,17 +381,8 @@ async def test_import_returns_warning_when_no_importable_rows(client) -> None:
     notes.title = "Notes"
     notes.append(["No data here"])
 
-    buffer = io.BytesIO()
-    workbook.save(buffer)
-    buffer.seek(0)
-
-    files = {
-        "file": (
-            "notes.xlsx",
-            buffer,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-    }
+    buffer = _save_workbook(workbook)
+    files = {"file": ("notes.xlsx", buffer, XLSX_MIME)}
 
     response = await client.post("/imports/spreadsheet", files=files)
     assert response.status_code == 200
@@ -272,3 +391,4 @@ async def test_import_returns_warning_when_no_importable_rows(client) -> None:
     assert payload["message"] == NO_IMPORTABLE_ROWS_WARNING
     assert payload["detail"] == NO_IMPORTABLE_ROWS_WARNING
     assert payload["counters"]["warnings"] == [NO_IMPORTABLE_ROWS_WARNING]
+

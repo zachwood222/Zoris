@@ -133,6 +133,7 @@ const handleFallback = async (
   }
 
   if (request.method === 'POST' && path === 'imports/spreadsheet') {
+    const dataset = request.nextUrl.searchParams.get('dataset') ?? 'selected';
     try {
       await request.formData();
     } catch (error) {
@@ -143,8 +144,7 @@ const handleFallback = async (
 
     return NextResponse.json(
       {
-        detail:
-          'Unable to reach the FastAPI backend. Set NEXT_PUBLIC_API_URL or API_PROXY_TARGET to your API base URL so imports can be forwarded.',
+        detail: `Unable to reach the FastAPI backend. Set NEXT_PUBLIC_API_URL or API_PROXY_TARGET to your API base URL so ${dataset} dataset imports can be forwarded.`,
         exampleSummary: createMockImportSummary()
       },
       {

@@ -25,8 +25,9 @@ export default function ImportSpreadsheetPage(): JSX.Element {
             </span>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">Import operational data</h1>
             <p className="max-w-2xl text-sm text-slate-300 sm:text-base">
-              Upload an XLSX workbook with <strong>Products</strong>, <strong>Customers</strong>, <strong>Orders</strong>, and{' '}
-              <strong>Purchase Orders</strong> sheets to cleanse data before it lands in the live database.
+              Import your operational records one dataset at a time. Upload separate spreadsheets for{' '}
+              <strong>Products</strong>, <strong>Customers</strong>, <strong>Vendors</strong>, <strong>Orders</strong>, or{' '}
+              <strong>Purchase Orders</strong> so we can cleanse each source and keep the database in sync.
             </p>
           </div>
         </div>
@@ -37,9 +38,9 @@ export default function ImportSpreadsheetPage(): JSX.Element {
           <div className="space-y-2">
             <h2 className="text-xl font-semibold text-white">Import spreadsheet</h2>
             <p className="text-sm text-slate-300">
-              We automatically normalise headers, clean cell values, and deduplicate contacts to streamline loading new
-              assortments. Each sheet can include optional vendor, location, and quantity details to seed inventory, customer
-              records, sales, and purchase orders in one upload.
+              Choose the dataset you are loading, attach the corresponding XLSX file, and let us normalise headers, clean cell
+              values, and deduplicate records before they land in production. Product imports continue to wipe demo fixtures so
+              subsequent customer, vendor, sales, and purchase order uploads build on a clean slate.
             </p>
           </div>
           <DashboardImportForm />

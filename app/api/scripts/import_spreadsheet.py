@@ -11,7 +11,12 @@ from typing import Iterable
 from fastapi import HTTPException
 
 from ..db import SessionLocal
-from ..services.importer import ImportCounters, ImportResult, import_spreadsheet
+from ..services.importer import (
+    SUPPORTED_SHEETS,
+    ImportCounters,
+    ImportResult,
+    import_spreadsheet,
+)
 
 
 def _format_counter_lines(counters: ImportCounters) -> list[str]:
@@ -66,9 +71,9 @@ def _print_summary(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Import an XLSX workbook containing 'Products', 'Customers', 'Orders', and "
-            "'Purchase Orders' sheets. Existing demo fixtures are removed automatically so "
-            "your data replaces them."
+            "Import XLSX workbooks for specific operational datasets such as products, "
+            "customers, vendors, sales orders, or purchase orders. Products imports clear "
+            "demo fixtures before loading new data."
         )
     )
     parser.add_argument(
@@ -80,14 +85,22 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run the importer and display the summary without committing database changes",
     )
+    parser.add_argument(
+        "--dataset",
+        choices=sorted(SUPPORTED_SHEETS),
+        help=(
+            "Limit the import to a single dataset. Without this flag the importer expects "
+            "a multi-sheet workbook."
+        ),
+    )
     return parser
 
 
-async def _run_import(path: Path, dry_run: bool) -> ImportResult:
+async def _run_import(path: Path, dry_run: bool, dataset: str | None) -> ImportResult:
     data = path.read_bytes()
     async with SessionLocal() as session:
         try:
-            result = await import_spreadsheet(session, data, path.name)
+            result = await import_spreadsheet(session, data, path.name, dataset=dataset)
             if dry_run:
                 await session.rollback()
             else:
@@ -111,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"Spreadsheet file not found: {path}")
 
     try:
-        result = asyncio.run(_run_import(path, args.dry_run))
+        result = asyncio.run(_run_import(path, args.dry_run, args.dataset))
     except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
