@@ -8,9 +8,91 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..models.domain import Barcode, Inventory, Item, Location, POLine, PurchaseOrder, Vendor
 from ..schemas.common import ItemSummary
-from ..schemas.items import IncomingPurchaseInfo, ItemDetailResponse, ItemLocationInfo
+from ..schemas.items import (
+    CatalogItemSummary,
+    CatalogLocationInfo,
+    IncomingPurchaseInfo,
+    ItemDetailResponse,
+    ItemLocationInfo,
+)
 
 router = APIRouter()
+
+
+@router.get("/catalog", response_model=list[CatalogItemSummary])
+async def list_catalog_items(
+    q: str | None = None,
+    limit: int = 50,
+    session: AsyncSession = Depends(get_session),
+) -> list[CatalogItemSummary]:
+    search = (q or "").strip()
+    limit_value = max(1, min(limit, 100))
+
+    stmt = select(Item).where(Item.active.is_(True)).order_by(Item.description.asc())
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(Item.sku.ilike(pattern), Item.description.ilike(pattern))
+        )
+    stmt = stmt.limit(limit_value)
+
+    items = (await session.execute(stmt)).scalars().all()
+    if not items:
+        return []
+
+    item_ids = [item.item_id for item in items]
+
+    inventory_stmt = (
+        select(
+            Inventory.item_id.label("item_id"),
+            Inventory.qty_on_hand.label("qty_on_hand"),
+            Location.location_id.label("location_id"),
+            Location.name.label("location_name"),
+        )
+        .join(Location, Inventory.location_id == Location.location_id, isouter=True)
+        .where(Inventory.item_id.in_(item_ids))
+    )
+
+    inventory_rows = (await session.execute(inventory_stmt)).all()
+    totals: dict[int, float] = {item_id: 0.0 for item_id in item_ids}
+    top_candidates: dict[int, tuple[int, str, float]] = {}
+
+    for row in inventory_rows:
+        item_id = row.item_id
+        qty = float(row.qty_on_hand or 0)
+        totals[item_id] = totals.get(item_id, 0.0) + qty
+        if row.location_id is not None and row.location_name:
+            current = top_candidates.get(item_id)
+            if current is None or qty > current[2]:
+                top_candidates[item_id] = (
+                    row.location_id,
+                    row.location_name,
+                    qty,
+                )
+
+    catalog_items: list[CatalogItemSummary] = []
+    for item in items:
+        candidate = top_candidates.get(item.item_id)
+        top_location = (
+            CatalogLocationInfo(
+                location_id=candidate[0],
+                location_name=candidate[1],
+                qty_on_hand=candidate[2],
+            )
+            if candidate
+            else None
+        )
+        catalog_items.append(
+            CatalogItemSummary(
+                item_id=item.item_id,
+                sku=item.sku,
+                description=item.description,
+                total_on_hand=totals.get(item.item_id, 0.0),
+                top_location=top_location,
+            )
+        )
+
+    return catalog_items
 
 
 @router.get("/search", response_model=list[ItemSummary])
