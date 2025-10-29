@@ -97,6 +97,7 @@ async def list_catalog_items(
                 item_id=item.item_id,
                 sku=item.sku,
                 description=item.description,
+                vendor_model=item.vendor_model,
                 total_on_hand=totals.get(item.item_id, 0.0),
                 top_location=top_location,
             )

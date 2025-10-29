@@ -14,6 +14,7 @@ interface CatalogItem {
   item_id: number;
   sku: string;
   description: string;
+  vendor_model: string | null;
   total_on_hand: number;
   top_location: CatalogLocationInfo | null;
 }
@@ -137,6 +138,9 @@ export default function KioskCatalogLookupPage() {
                       <div>
                         <p className="text-sm font-semibold text-white">{item.description}</p>
                         <p className="text-xs uppercase tracking-[0.35em] text-slate-400">{item.sku}</p>
+                        {item.vendor_model && (
+                          <p className="mt-1 text-xs text-slate-400">Vendor model: {item.vendor_model}</p>
+                        )}
                       </div>
                       <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
                         {numberFormatter.format(item.total_on_hand)} on hand
