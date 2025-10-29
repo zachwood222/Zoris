@@ -53,5 +53,6 @@ class CatalogItemSummary(BaseModel):
     item_id: int
     sku: str
     description: str
+    vendor_model: str | None = None
     total_on_hand: float
     top_location: CatalogLocationInfo | None = None
