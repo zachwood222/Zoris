@@ -81,6 +81,39 @@ def _build_products_workbook(
     return workbook
 
 
+def _build_vendor_mod_products_workbook() -> Workbook:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Products"
+    sheet.append(
+        [
+            "Product",
+            "Vendor Mod",
+            "Description",
+            "Descriptions 2",
+            "Vend",
+            "Type",
+            "Cost",
+            "Sell Price",
+            "Qty On Hand",
+        ]
+    )
+    sheet.append(
+        (
+            "SOFA-001",
+            "ACME-SOFA-001",
+            "Modern Sofa",
+            "Gray Fabric",
+            "Acme Furniture",
+            "Seating",
+            450.00,
+            899.00,
+            4,
+        )
+    )
+    return workbook
+
+
 def _build_customers_workbook() -> Workbook:
     workbook = Workbook()
     sheet = workbook.active
@@ -258,6 +291,23 @@ async def test_import_products_and_customers(client) -> None:
     descriptions = {item.sku: item.description for item in items}
     assert descriptions["SOFA-001"] == "Modern Sofa - Gray Fabric"
     assert descriptions["LAMP-002"] == "Brass Floor Lamp - Matte Finish"
+
+
+@pytest.mark.asyncio
+async def test_import_products_accepts_vendor_mod_header(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    buffer = _save_workbook(_build_vendor_mod_products_workbook())
+    files = {"file": ("products.xlsx", buffer, XLSX_MIME)}
+    response = await client.post("/imports/spreadsheet?dataset=products", files=files)
+    assert response.status_code == 200
+
+    async with SessionLocal() as session:
+        item = await session.scalar(select(Item).where(Item.sku == "SOFA-001"))
+
+    assert item is not None
+    assert item.vendor_model == "ACME-SOFA-001"
 
 
 @pytest.mark.asyncio

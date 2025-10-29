@@ -62,7 +62,7 @@ FIELD_ALIASES: dict[str, dict[str, set[str]]] = {
         },
         "location_name": {"location", "location_name", "warehouse", "store", "site"},
         "vendor_name": {"vendor", "vendor_name", "vend"},
-        "vendor_model": {"vendor_model"},
+        "vendor_model": {"vendor_model", "vendor_mod", "vendor_model_number", "vendor_model_no"},
     },
     "customers": {
         "name": {"name", "customer_name", "full_name", "customer_full_name"},
