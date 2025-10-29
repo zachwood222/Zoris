@@ -1,6 +1,8 @@
 """Sales endpoints."""
 from __future__ import annotations
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -120,7 +122,10 @@ async def add_line(sale_id: int, payload: SaleLineRequest, session: AsyncSession
     )
     session.add(line)
     await session.flush()
-    sale.subtotal = (sale.subtotal or 0) + float(item.price) * payload.qty
+    sale_subtotal = Decimal(sale.subtotal or 0)
+    item_price = Decimal(item.price or 0)
+    qty = Decimal(str(payload.qty))
+    sale.subtotal = sale_subtotal + item_price * qty
     sale.total = sale.subtotal
     return {"sale_line_id": line.sale_line_id}
 
