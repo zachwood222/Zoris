@@ -42,7 +42,24 @@ async def list_catalog_items(
     if search:
         pattern = f"%{search}%"
         stmt = stmt.where(
-            or_(Item.sku.ilike(pattern), Item.description.ilike(pattern))
+            or_(
+                Item.sku.ilike(pattern),
+                Item.description.ilike(pattern),
+                Item.vendor_model.ilike(pattern),
+                Item.category.ilike(pattern),
+                Item.subcategory.ilike(pattern),
+                Item.tax_code.ilike(pattern),
+                Item.short_code.ilike(pattern),
+                Item.upc.ilike(pattern),
+                Item.item_id.in_(
+                    select(Barcode.item_id).where(Barcode.barcode.ilike(pattern))
+                ),
+                Item.item_id.in_(
+                    select(Inventory.item_id)
+                    .join(Location, Inventory.location_id == Location.location_id)
+                    .where(Location.name.ilike(pattern))
+                ),
+            )
         )
     stmt = stmt.limit(limit_value)
 

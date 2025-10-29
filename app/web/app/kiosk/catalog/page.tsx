@@ -93,7 +93,9 @@ export default function KioskCatalogLookupPage() {
       </header>
       <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/20">
         <label className="grid gap-2 text-sm">
-          <span className="font-semibold text-slate-200">Search by SKU or description</span>
+          <span className="font-semibold text-slate-200">
+            Search by SKU, vendor model, description, barcode, or location
+          </span>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
