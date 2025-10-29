@@ -114,7 +114,7 @@ export default function ItemsDashboardClient() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filter by SKU or description"
+              placeholder="Search by SKU, vendor model, description, barcode, or location"
               className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white focus:border-sky-400 focus:outline-none"
             />
           </label>

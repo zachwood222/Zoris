@@ -8,6 +8,7 @@ import pytest
 from ..db import SessionLocal, engine
 from ..models.base import Base
 from ..models.domain import (
+    Barcode,
     Inventory,
     Item,
     Location,
@@ -116,3 +117,86 @@ async def test_search_items_supports_short_code(client) -> None:
     payload = response.json()
 
     assert any(result["sku"] == "SKU-SHORT" for result in payload)
+
+
+@pytest.mark.asyncio
+async def test_catalog_search_matches_additional_fields(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with SessionLocal() as session:
+        primary_location = Location(name="Outlet Warehouse", type="warehouse")
+        secondary_location = Location(name="Downtown Showroom", type="floor")
+        matching_item = Item(
+            sku="SOFA-001",
+            description="Modular Sectional",
+            unit_cost=Decimal("400.00"),
+            price=Decimal("899.00"),
+            short_code="SF01",
+            vendor_model="ACME-SF-01",
+            category="Seating",
+            subcategory="Sectionals",
+            tax_code="FURN",
+            active=True,
+        )
+        other_item = Item(
+            sku="CHAIR-100",
+            description="Accent Chair",
+            unit_cost=Decimal("120.00"),
+            price=Decimal("249.00"),
+            short_code="CH10",
+            vendor_model="CHAIR-BASE",
+            category="Seating",
+            subcategory="Accent",
+            tax_code="FURN",
+            active=True,
+        )
+        inventory_record = Inventory(
+            item=matching_item,
+            location=primary_location,
+            qty_on_hand=Decimal("5.00"),
+            qty_reserved=Decimal("0.00"),
+            avg_cost=Decimal("400.00"),
+        )
+        extra_inventory = Inventory(
+            item=other_item,
+            location=secondary_location,
+            qty_on_hand=Decimal("3.00"),
+            qty_reserved=Decimal("0.00"),
+            avg_cost=Decimal("120.00"),
+        )
+        barcode = Barcode(item=matching_item, barcode="1234567890123")
+        session.add_all(
+            [
+                primary_location,
+                secondary_location,
+                matching_item,
+                other_item,
+                inventory_record,
+                extra_inventory,
+                barcode,
+            ]
+        )
+        await session.commit()
+
+    async def _search(query: str) -> list[dict]:
+        response = await client.get("/items/catalog", params={"q": query})
+        assert response.status_code == 200
+        return response.json()
+
+    # Vendor model
+    results = await _search("ACME-SF-01")
+    assert [item["sku"] for item in results] == ["SOFA-001"]
+
+    # Category and subcategory
+    results = await _search("Sectionals")
+    assert [item["sku"] for item in results] == ["SOFA-001"]
+
+    # Barcode match
+    results = await _search("1234567890123")
+    assert [item["sku"] for item in results] == ["SOFA-001"]
+
+    # Location match
+    results = await _search("Outlet Warehouse")
+    assert [item["sku"] for item in results] == ["SOFA-001"]
