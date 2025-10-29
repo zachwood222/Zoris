@@ -23,6 +23,7 @@ from ..db import engine
 from ..models import domain
 from ..models.base import Base
 from ..utils.datetime import utc_now
+from ..utils.schema import ensure_runtime_schema
 
 SUPPORTED_SHEETS = {"products", "customers", "orders", "purchase_orders", "vendors"}
 
@@ -389,6 +390,9 @@ async def _import_products(
                 if existing_item.description != description:
                     existing_item.description = description
                     updated = True
+                if vendor_model and existing_item.vendor_model != vendor_model:
+                    existing_item.vendor_model = vendor_model
+                    updated = True
                 if category and existing_item.category != category:
                     existing_item.category = category
                     updated = True
@@ -422,6 +426,7 @@ async def _import_products(
                 tax_code=tax_code,
                 short_code=short_code,
                 active=True,
+                vendor_model=vendor_model,
             )
             session.add(item)
             await session.flush()
@@ -711,6 +716,7 @@ async def _clear_inventory(session: AsyncSession) -> None:
 async def _ensure_schema() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await ensure_runtime_schema()
 
 
 async def _load_vendor_index(session: AsyncSession) -> dict[str, domain.Vendor]:

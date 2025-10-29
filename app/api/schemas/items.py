@@ -37,3 +37,25 @@ class ItemDetailResponse(BaseModel):
     total_on_hand: float
     locations: list[ItemLocationInfo]
     incoming: list[IncomingPurchaseInfo]
+
+
+class CatalogLocationInfo(BaseModel):
+    """Location snapshot for catalog listings."""
+
+    location_id: int
+    location_name: str
+    qty_on_hand: float
+
+
+class CatalogItemSummary(BaseModel):
+    """Simplified item summary for catalog lookups."""
+
+    item_id: int
+    sku: str
+    description: str
+    total_on_hand: float
+    top_location: CatalogLocationInfo | None = None
+    vendor_model: str | None = None
+    has_open_purchase_order: bool
+    purchase_order_ids: list[int]
+    open_sale_ids: list[int]
