@@ -23,6 +23,7 @@ from ..db import engine
 from ..models import domain
 from ..models.base import Base
 from ..utils.datetime import utc_now
+from ..utils.schema import ensure_runtime_schema
 
 SUPPORTED_SHEETS = {"products", "customers", "orders", "purchase_orders", "vendors"}
 
@@ -715,6 +716,7 @@ async def _clear_inventory(session: AsyncSession) -> None:
 async def _ensure_schema() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await ensure_runtime_schema()
 
 
 async def _load_vendor_index(session: AsyncSession) -> dict[str, domain.Vendor]:

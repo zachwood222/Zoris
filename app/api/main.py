@@ -14,6 +14,7 @@ from .utils.logging import (
     configure_sqlalchemy_logging,
     log_startup_settings,
 )
+from .utils.schema import ensure_runtime_schema
 
 settings = get_settings()
 configure_logging(level=settings.log_level)
@@ -42,6 +43,7 @@ app.include_router(api_router)
 
 @app.on_event("startup")
 async def _log_startup_summary() -> None:
+    await ensure_runtime_schema()
     if settings.log_startup_summary:
         log_startup_settings(settings)
     logger.info("Application startup complete", extra={"environment": settings.environment})
