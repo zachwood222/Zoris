@@ -80,34 +80,6 @@ async def list_catalog_items(
                     qty,
                 )
 
-    po_rows = (
-        await session.execute(
-            select(POLine.item_id, PurchaseOrder.po_id)
-            .join(PurchaseOrder, POLine.po_id == PurchaseOrder.po_id)
-            .where(
-                POLine.item_id.in_(item_ids),
-                PurchaseOrder.status.in_(("open", "partial")),
-            )
-        )
-    ).all()
-    item_po_ids: dict[int, set[int]] = {item_id: set() for item_id in item_ids}
-    for row in po_rows:
-        item_po_ids.setdefault(row.item_id, set()).add(row.po_id)
-
-    sale_rows = (
-        await session.execute(
-            select(SaleLine.item_id, Sale.sale_id)
-            .join(Sale, SaleLine.sale_id == Sale.sale_id)
-            .where(
-                SaleLine.item_id.in_(item_ids),
-                Sale.status == "open",
-            )
-        )
-    ).all()
-    item_sale_ids: dict[int, set[int]] = {item_id: set() for item_id in item_ids}
-    for row in sale_rows:
-        item_sale_ids.setdefault(row.item_id, set()).add(row.sale_id)
-
     catalog_items: list[CatalogItemSummary] = []
     for item in items:
         candidate = top_candidates.get(item.item_id)
@@ -127,10 +99,6 @@ async def list_catalog_items(
                 description=item.description,
                 total_on_hand=totals.get(item.item_id, 0.0),
                 top_location=top_location,
-                vendor_model=item.vendor_model,
-                has_open_purchase_order=bool(item_po_ids.get(item.item_id)),
-                purchase_order_ids=sorted(item_po_ids.get(item.item_id, set())),
-                open_sale_ids=sorted(item_sale_ids.get(item.item_id, set())),
             )
         )
 
