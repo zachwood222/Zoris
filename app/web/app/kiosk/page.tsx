@@ -4,6 +4,10 @@ import axios from 'axios';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 
 import { getApiBase, buildAuthHeaders } from '../../lib/api';
+import {
+  consumeQueuedKioskCartItems,
+  KIOSK_CART_QUEUE_KEY
+} from '../../lib/kiosk-cart';
 
 interface ItemSummary {
   item_id: number;
@@ -101,6 +105,112 @@ export default function KioskPage() {
       clearTimeout(handler);
     };
   }, [query]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    let cancelled = false;
+    let controller: AbortController | null = null;
+
+    const addItemToCart = (item: ItemSummary) => {
+      setLines((current) => {
+        const existing = current.find((line) => line.item.item_id === item.item_id);
+        if (existing) {
+          return current.map((line) =>
+            line.item.item_id === item.item_id ? { ...line, qty: line.qty + 1 } : line
+          );
+        }
+        return [...current, { item, qty: 1 }];
+      });
+    };
+
+    const processQueuedItems = async () => {
+      if (cancelled) {
+        return;
+      }
+
+      const queued = consumeQueuedKioskCartItems();
+      if (queued.length === 0) {
+        return;
+      }
+
+      controller?.abort();
+      controller = new AbortController();
+
+      let headers: Record<string, string>;
+      try {
+        headers = await buildAuthHeaders();
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) {
+          setStatus({
+            kind: 'error',
+            message: 'Unable to authenticate while adding catalog items to the cart.'
+          });
+        }
+        return;
+      }
+
+      const added: string[] = [];
+      let hadError = false;
+
+      for (const itemId of queued) {
+        try {
+          const { data } = await axios.get<ItemDetail>(`${api}/items/${itemId}`, {
+            signal: controller.signal,
+            headers
+          });
+          if (cancelled) {
+            return;
+          }
+          addItemToCart(data.item);
+          added.push(data.item.description);
+        } catch (error) {
+          if (controller?.signal.aborted) {
+            return;
+          }
+          hadError = true;
+          console.error(error);
+        }
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      if (added.length > 0) {
+        setStatus({
+          kind: hadError ? 'error' : 'success',
+          message:
+            added.length === 1
+              ? `${added[0]} added to the cart from the catalog queue.`
+              : `Added ${added.length} catalog items to the cart. ${hadError ? 'Some items could not be added.' : ''}`
+        });
+      } else if (hadError) {
+        setStatus({
+          kind: 'error',
+          message: 'Unable to add queued catalog items to the cart.'
+        });
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === KIOSK_CART_QUEUE_KEY) {
+        void processQueuedItems();
+      }
+    };
+
+    void processQueuedItems();
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [api]);
 
   const closeDetail = useCallback(() => {
     setSelectedItem(null);
