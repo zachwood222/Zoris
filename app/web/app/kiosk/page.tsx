@@ -46,6 +46,17 @@ interface SaleLineDraft {
   qty: number;
 }
 
+type PaymentMethod =
+  | 'cash'
+  | 'check'
+  | 'credit_card'
+  | 'syncrony'
+  | 'wells_fargo'
+  | 'giftcard'
+  | 'credit_on_file';
+
+type FulfillmentType = 'pickup' | 'delivery';
+
 type StatusMessage = {
   kind: 'success' | 'error';
   message: string;
@@ -65,6 +76,30 @@ export default function KioskPage() {
   const [selectedDetail, setSelectedDetail] = useState<ItemDetail | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('pickup');
+  const [deliveryFee, setDeliveryFee] = useState(120);
+
+  const paymentMethodOptions = useMemo(
+    () => [
+      { value: 'cash', label: 'Cash' },
+      { value: 'check', label: 'Check' },
+      { value: 'credit_card', label: 'CC (Mastercard, Visa, American Express)' },
+      { value: 'syncrony', label: 'Syncrony' },
+      { value: 'wells_fargo', label: 'Wells Fargo' },
+      { value: 'giftcard', label: 'Gift card' },
+      { value: 'credit_on_file', label: 'Credit on file' }
+    ],
+    []
+  );
+
+  const fulfillmentOptions = useMemo(
+    () => [
+      { value: 'pickup', label: 'Customer pickup' },
+      { value: 'delivery', label: 'Delivery' }
+    ],
+    []
+  );
 
   useEffect(() => {
     if (!query) {
@@ -280,12 +315,35 @@ export default function KioskPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedItem, closeDetail]);
 
-  const total = useMemo(
+  const subtotal = useMemo(
     () =>
       lines.reduce((sum, line) => {
         return sum + line.qty * line.item.price;
       }, 0),
     [lines]
+  );
+
+  const cardFeeRate = 0.035;
+  const federalTaxRate = 0.07;
+  const localTaxRate = 0.01;
+  const isCreditCard = paymentMethod === 'credit_card';
+  const isDelivery = fulfillmentType === 'delivery';
+
+  const cardFee = useMemo(() => (isCreditCard ? subtotal * cardFeeRate : 0), [isCreditCard, subtotal]);
+  const appliedDeliveryFee = useMemo(
+    () => (isDelivery ? Math.max(0, deliveryFee) : 0),
+    [deliveryFee, isDelivery]
+  );
+  const taxBase = useMemo(
+    () => subtotal + cardFee + appliedDeliveryFee,
+    [appliedDeliveryFee, cardFee, subtotal]
+  );
+  const federalTax = useMemo(() => taxBase * federalTaxRate, [taxBase]);
+  const localTax = useMemo(() => taxBase * localTaxRate, [taxBase]);
+  const tax = useMemo(() => federalTax + localTax, [federalTax, localTax]);
+  const totalDue = useMemo(
+    () => subtotal + cardFee + appliedDeliveryFee + tax,
+    [appliedDeliveryFee, cardFee, subtotal, tax]
   );
 
   const addLine = (item: ItemSummary) => {
@@ -608,18 +666,89 @@ export default function KioskPage() {
             )}
           </div>
 
-          <div className="space-y-3 rounded-2xl border border-slate-800/80 bg-slate-950/40 p-5 text-sm text-slate-300">
-            <div className="flex items-center justify-between">
-              <span>Items</span>
-              <span className="font-semibold text-white">{lines.length}</span>
+          <div className="space-y-4 rounded-2xl border border-slate-800/80 bg-slate-950/40 p-5 text-sm text-slate-300">
+            <div className="space-y-4">
+              <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Payment method
+                <select
+                  className="mt-2 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-inner shadow-black/20 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30"
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
+                >
+                  {paymentMethodOptions.map((option) => (
+                    <option key={option.value} value={option.value} className="bg-slate-900 text-white">
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Fulfillment
+                <select
+                  className="mt-2 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-inner shadow-black/20 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30"
+                  value={fulfillmentType}
+                  onChange={(event) => setFulfillmentType(event.target.value as FulfillmentType)}
+                >
+                  {fulfillmentOptions.map((option) => (
+                    <option key={option.value} value={option.value} className="bg-slate-900 text-white">
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {isDelivery && (
+                <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  Delivery fee
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={deliveryFee}
+                    onChange={(event) => {
+                      const value = Number.parseFloat(event.target.value);
+                      setDeliveryFee(Number.isNaN(value) ? 0 : Math.max(0, value));
+                    }}
+                    className="mt-2 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-inner shadow-black/20 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30"
+                  />
+                </label>
+              )}
             </div>
-            <div className="flex items-center justify-between">
-              <span>Subtotal</span>
-              <span className="font-semibold text-white">{formatCurrency(total)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm uppercase tracking-[0.3em] text-emerald-400/80">
-              <span>Total due</span>
-              <span className="text-lg font-semibold text-emerald-300">{formatCurrency(total)}</span>
+
+            <div className="space-y-3 border-t border-slate-800/60 pt-4">
+              <div className="flex items-center justify-between">
+                <span>Items</span>
+                <span className="font-semibold text-white">{lines.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Subtotal</span>
+                <span className="font-semibold text-white">{formatCurrency(subtotal)}</span>
+              </div>
+              {cardFee > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>CC fee (3.5%)</span>
+                  <span className="font-semibold text-white">{formatCurrency(cardFee)}</span>
+                </div>
+              )}
+              {appliedDeliveryFee > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>Delivery fee</span>
+                  <span className="font-semibold text-white">{formatCurrency(appliedDeliveryFee)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span>Federal tax (7%)</span>
+                <span className="font-semibold text-white">{formatCurrency(federalTax)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Local tax (1%)</span>
+                <span className="font-semibold text-white">{formatCurrency(localTax)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm uppercase tracking-[0.3em] text-emerald-400/80">
+                <span>Total due</span>
+                <span className="text-lg font-semibold text-emerald-300">{formatCurrency(totalDue)}</span>
+              </div>
             </div>
           </div>
 
