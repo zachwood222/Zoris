@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 
@@ -877,6 +878,23 @@ export default function KioskPage() {
                     ) : (
                       <p className="mt-2 text-sm text-slate-500">No incoming purchase orders for this item.</p>
                     )}
+                    <div className="mt-4 space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                      <p className="font-semibold">Need to order more of this item?</p>
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href="/receiving/purchase-orders/new"
+                          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                        >
+                          Create purchase order
+                        </Link>
+                        <Link
+                          href="/dashboard/purchase-orders#po-list"
+                          className="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                        >
+                          Add to existing purchase order
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
