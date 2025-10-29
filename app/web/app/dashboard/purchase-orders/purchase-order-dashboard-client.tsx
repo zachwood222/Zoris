@@ -208,6 +208,7 @@ export default function PurchaseOrderDashboardClient() {
             return (
               <article
                 key={po.po_id}
+                id={`po-${po.po_id}`}
                 className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-lg shadow-slate-950/25"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

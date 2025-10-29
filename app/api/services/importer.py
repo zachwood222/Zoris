@@ -389,6 +389,9 @@ async def _import_products(
                 if existing_item.description != description:
                     existing_item.description = description
                     updated = True
+                if vendor_model and existing_item.vendor_model != vendor_model:
+                    existing_item.vendor_model = vendor_model
+                    updated = True
                 if category and existing_item.category != category:
                     existing_item.category = category
                     updated = True
@@ -422,6 +425,7 @@ async def _import_products(
                 tax_code=tax_code,
                 short_code=short_code,
                 active=True,
+                vendor_model=vendor_model,
             )
             session.add(item)
             await session.flush()

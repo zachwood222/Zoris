@@ -121,6 +121,7 @@ class Item(Base, TimestampMixin):
     tax_code: Mapped[Optional[str]]
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     short_code: Mapped[str] = mapped_column(String(4), unique=True, index=True)
+    vendor_model: Mapped[Optional[str]] = mapped_column(String(100))
 
     barcodes: Mapped[list["Barcode"]] = relationship(back_populates="item")
 
