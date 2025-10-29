@@ -55,7 +55,3 @@ class CatalogItemSummary(BaseModel):
     description: str
     total_on_hand: float
     top_location: CatalogLocationInfo | None = None
-    vendor_model: str | None = None
-    has_open_purchase_order: bool
-    purchase_order_ids: list[int]
-    open_sale_ids: list[int]

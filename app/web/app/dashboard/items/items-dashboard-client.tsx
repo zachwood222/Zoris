@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import { buildAuthHeaders, getApiBase } from '../../../lib/api';
@@ -17,10 +16,6 @@ interface CatalogItemSummary {
   description: string;
   total_on_hand: number;
   top_location: CatalogLocationInfo | null;
-  vendor_model: string | null;
-  has_open_purchase_order: boolean;
-  purchase_order_ids: number[];
-  open_sale_ids: number[];
 }
 
 export default function ItemsDashboardClient() {
@@ -108,80 +103,46 @@ export default function ItemsDashboardClient() {
             <tr>
               <th scope="col" className="px-6 py-3 font-semibold">SKU</th>
               <th scope="col" className="px-6 py-3 font-semibold">Description</th>
-              <th scope="col" className="px-6 py-3 font-semibold">Vendor model</th>
               <th scope="col" className="px-6 py-3 font-semibold">On hand</th>
-              <th scope="col" className="px-6 py-3 font-semibold">Purchase orders</th>
-              <th scope="col" className="px-6 py-3 font-semibold">Open tickets</th>
+              <th scope="col" className="px-6 py-3 font-semibold">Primary location</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {isLoading && items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-400">
+                <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400">
                   Loading catalog items…
                 </td>
               </tr>
             )}
             {error && !isLoading && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-sm text-rose-200">
+                <td colSpan={4} className="px-6 py-8 text-center text-sm text-rose-200">
                   {error}
                 </td>
               </tr>
             )}
             {!error && !isLoading && items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-400">
+                <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400">
                   No catalog items match your filters.
                 </td>
               </tr>
             )}
             {!error &&
               items.map((item) => {
+                const topLocation = item.top_location;
                 return (
                   <tr key={item.item_id} className="hover:bg-slate-900/60">
                     <td className="px-6 py-4 font-mono text-xs uppercase tracking-[0.3em] text-slate-300">{item.sku}</td>
                     <td className="px-6 py-4 text-sm text-white">{item.description}</td>
-                    <td className="px-6 py-4 text-sm text-slate-300">{item.vendor_model ?? '—'}</td>
                     <td className="px-6 py-4 text-sm text-emerald-200">
                       {numberFormatter.format(item.total_on_hand)}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-300">
-                      {item.has_open_purchase_order ? (
-                        <div className="space-y-1">
-                          <span className="font-semibold text-emerald-200">Yes</span>
-                          <div className="flex flex-wrap gap-2 text-xs">
-                            {item.purchase_order_ids.map((poId) => (
-                              <Link
-                                key={`po-${poId}`}
-                                href={`/dashboard/purchase-orders#po-${poId}`}
-                                className="inline-flex items-center rounded-full border border-sky-400/30 px-3 py-1 font-semibold uppercase tracking-[0.3em] text-sky-100 hover:border-sky-300/50 hover:text-sky-50"
-                              >
-                                PO-{poId}
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">No</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-300">
-                      {item.open_sale_ids.length ? (
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {item.open_sale_ids.map((saleId) => (
-                            <Link
-                              key={`sale-${saleId}`}
-                              href={`/dashboard/sales/${saleId}`}
-                              className="inline-flex items-center rounded-full border border-amber-400/30 px-3 py-1 font-semibold uppercase tracking-[0.3em] text-amber-100 hover:border-amber-300/50 hover:text-amber-50"
-                            >
-                              Ticket #{saleId}
-                            </Link>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">None</span>
-                      )}
+                      {topLocation
+                        ? `${topLocation.location_name} (${numberFormatter.format(topLocation.qty_on_hand)} on hand)`
+                        : 'No location assigned'}
                     </td>
                   </tr>
                 );
