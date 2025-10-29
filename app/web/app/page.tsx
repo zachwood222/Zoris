@@ -103,6 +103,42 @@ const quickActionGroups = [
     ]
   },
   {
+    title: 'Records & reporting',
+    description: 'Jump directly to the data your finance and ops teams monitor all day long.',
+    items: [
+      {
+        href: '/dashboard/vendors',
+        label: 'View vendors',
+        description: 'Browse the imported vendor directory with terms and contacts.',
+        icon: '🏬'
+      },
+      {
+        href: '/dashboard/items',
+        label: 'View item catalog',
+        description: 'Inspect live catalog inventory synced from spreadsheet imports.',
+        icon: '📦'
+      },
+      {
+        href: '/dashboard/purchase-orders',
+        label: 'View purchase orders',
+        description: 'Track purchasing commitments and reconcile receiving progress.',
+        icon: '🧾'
+      },
+      {
+        href: '/dashboard/invoices',
+        label: 'View invoices',
+        description: 'Audit vendor billing, due dates, and payment status.',
+        icon: '💼'
+      },
+      {
+        href: '/dashboard/reports',
+        label: 'Reports dashboard',
+        description: 'Visualize KPIs, activity, and system health in one spot.',
+        icon: '📊'
+      }
+    ]
+  },
+  {
     title: 'Deliver & receive',
     description: 'Coordinate warehouse and delivery teams to keep promises on track.',
     items: [
