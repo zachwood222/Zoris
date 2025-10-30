@@ -120,6 +120,12 @@ variable sets:
 - Provide a single `REDIS_URL` (or `REDIS_TLS_URL`) environment variable.
 - Or provide discrete parts such as `REDIS_HOST`, `REDIS_PORT`,
   `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_DB`, and `REDIS_USE_TLS=true`.
+- Override the Celery defaults entirely with `CELERY_BROKER_URL` and
+  `CELERY_RESULT_BACKEND` when broker and backend live on different hosts.
+
+When none of the variables above are present Celery falls back to the local
+development default (`redis://localhost:6379/0`) so that `docker-compose up`
+continues to work out of the box.
 
 If neither option is present the application now fails fast with a clear
 configuration error so that you can supply the appropriate Redis endpoint
