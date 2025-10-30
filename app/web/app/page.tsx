@@ -143,6 +143,12 @@ const quickActionGroups = [
     description: 'Coordinate warehouse and delivery teams to keep promises on track.',
     items: [
       {
+        href: '/delivery',
+        label: 'Delivery dashboard',
+        description: 'Monitor routes, map crews, and jump into delivery workflows.',
+        icon: '🗺️'
+      },
+      {
         href: '/receiving',
         label: 'Receive purchase order',
         description: 'Scan line items and reconcile inventory at the dock door.',
