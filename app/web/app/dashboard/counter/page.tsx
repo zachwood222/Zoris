@@ -114,8 +114,6 @@ export default function CounterDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           {supportingDashboards.map((dashboard: SupportingDashboard) => (
             <Link
-              key={dashboard.href}
-              href={dashboard.href}
               key={dashboard.id}
               id={dashboard.id}
               className="group flex h-full flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-5 shadow-md shadow-slate-950/20 transition hover:border-white/30 hover:bg-slate-900/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
