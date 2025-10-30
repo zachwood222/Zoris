@@ -7,168 +7,161 @@ import {
 } from './dashboard-summary-client';
 import HeroStatusCard from './hero-status-card';
 
-const workspaceSections = [
+const dashboards = [
   {
-    title: 'Counter & sales',
-    description: 'Empower the counter team with quick access to the tools they touch all day.',
-    items: [
+    title: 'Sales counter',
+    description: 'Serve customers fast with kiosk workflows, catalog lookups, and OCR validation in one spot.',
+    icon: '🛒',
+    href: '/dashboard/counter',
+    focusAreas: ['Tickets', 'Catalog', 'OCR review'],
+    quickTasks: [
       {
-        href: '/kiosk',
-        label: 'Sales Kiosk',
-        description:
-          'Accelerate assisted sales with fast lookup, barcode capture, and ticket automation.',
-        icon: '🛒'
-      },
-      {
-        href: '/review',
-        label: 'OCR Review',
-        description: 'Verify handwritten tickets before invoicing to keep billing accurate.',
-        icon: '📝'
-      }
-    ]
-  },
-  {
-    title: 'Operations & logistics',
-    description: 'Keep product flowing by coordinating dock activity, receiving, and labeling.',
-    items: [
-      {
-        href: '/receiving',
-        label: 'Receiving',
-        description: 'Scan purchase order lines as trucks arrive to keep inventory in sync.',
-        icon: '🚚'
-      },
-      {
-        href: '/incoming-trucks',
-        label: 'Incoming Trucks',
-        description: 'Track dock activity and log PO-linked updates as loads check in.',
-        icon: '🚛'
-      },
-      {
-        href: '/labels',
-        label: 'Labels',
-        description: 'Generate bin, shelf, and delivery labels with one-tap DYMO printing.',
-        icon: '🏷️'
-      }
-    ]
-  }
-];
-
-const quickActionGroups = [
-  {
-    title: 'Prep & import',
-    description: 'Load pricing, catalog, and vendor updates before the floor gets busy.',
-    items: [
-      {
-        href: '/imports/spreadsheet',
-        label: 'Import spreadsheet',
-        description: 'Upload dataset-specific spreadsheets to sync vendors, items, and orders.',
-        icon: '📥'
-      },
-      {
-        href: '/kiosk/catalog/new-item',
-        label: 'Add catalog item',
-        description: 'Extend the catalog with pricing, stocking, and barcode details.',
-        icon: '➕'
-      },
-      {
-        href: '/receiving/purchase-orders/new',
-        label: 'Create purchase order',
-        description: 'Draft a PO for inbound merchandise before it leaves the vendor.',
-        icon: '📄'
-      }
-    ]
-  },
-  {
-    title: 'Sell & support',
-    description: 'Keep the counter team unblocked while they help customers face-to-face.',
-    items: [
-      {
-        href: '/kiosk/new-ticket',
-        label: 'Create ticket',
-        description: 'Kick off a guided assisted-sale ticket from the kiosk.',
+        href: '/dashboard/counter#launch-kiosk',
+        label: 'Launch sales kiosk',
+        description: 'Open the guided kiosk workspace for counter teammates.',
         icon: '⚡'
       },
       {
-        href: '/kiosk/catalog',
-        label: 'Lookup item',
-        description: 'Search inventory availability and pull up ticket-ready details.',
+        href: '/dashboard/counter#create-ticket',
+        label: 'Build counter ticket',
+        description: 'Start a guided assisted-sale ticket with delivery preferences captured upfront.',
+        icon: '🧾'
+      },
+      {
+        href: '/dashboard/counter#lookup-item',
+        label: 'Lookup or add item',
+        description: 'Search live catalog inventory or add a missing SKU without leaving the counter.',
         icon: '🔍'
       },
       {
-        href: '/review',
-        label: 'Review OCR queue',
-        description: 'Double-check handwriting so finance can invoice without surprises.',
+        href: '/dashboard/counter#review-ocr',
+        label: 'Verify OCR queue',
+        description: 'Double-check handwriting before invoices go out.',
         icon: '📝'
       }
     ]
   },
   {
-    title: 'Records & reporting',
-    description: 'Jump directly to the data your finance and ops teams monitor all day long.',
-    items: [
+    title: 'Purchasing operations',
+    description: 'Keep vendors, orders, and receiving coordination organized for the purchasing desk.',
+    icon: '🧾',
+    href: '/dashboard/purchasing',
+    focusAreas: ['Vendor imports', 'Purchase orders', 'Receiving handoff'],
+    quickTasks: [
       {
-        href: '/dashboard/vendors',
-        label: 'View vendors',
-        description: 'Browse the imported vendor directory with terms and contacts.',
-        icon: '🏬'
+        href: '/dashboard/purchasing#import-vendors',
+        label: 'Import vendor updates',
+        description: 'Upload spreadsheets to refresh terms, contacts, and assortments.',
+        icon: '📥'
       },
       {
-        href: '/dashboard/items',
-        label: 'View item catalog',
-        description: 'Inspect live catalog inventory synced from spreadsheet imports.',
-        icon: '📦'
+        href: '/dashboard/purchasing#create-po',
+        label: 'Draft purchase order',
+        description: 'Create a new PO before sharing it with a vendor.',
+        icon: '📝'
       },
       {
-        href: '/dashboard/purchase-orders',
-        label: 'View purchase orders',
-        description: 'Track purchasing commitments and reconcile receiving progress.',
-        icon: '🧾'
-      },
-      {
-        href: '/dashboard/invoices',
-        label: 'View invoices',
-        description: 'Audit vendor billing, due dates, and payment status.',
-        icon: '💼'
-      },
-      {
-        href: '/dashboard/reports',
-        label: 'Reports dashboard',
-        description: 'Visualize KPIs, activity, and system health in one spot.',
+        href: '/dashboard/purchasing#manage-pos',
+        label: 'Review purchase orders',
+        description: 'Monitor open, received, and closed POs in one place.',
         icon: '📊'
+      },
+      {
+        href: '/dashboard/purchasing#review-vendors',
+        label: 'View vendor directory',
+        description: 'Check payment terms and reps without leaving purchasing.',
+        icon: '🏬'
       }
     ]
   },
   {
-    title: 'Deliver & receive',
-    description: 'Coordinate warehouse and delivery teams to keep promises on track.',
-    items: [
+    title: 'Inventory & receiving',
+    description: 'Track docks, reconcile receipts, and print labels to keep stock flowing.',
+    icon: '📦',
+    href: '/dashboard/inventory',
+    focusAreas: ['Dock scheduling', 'Receiving', 'Labeling'],
+    quickTasks: [
       {
-        href: '/receiving',
+        href: '/dashboard/inventory#receive-po',
         label: 'Receive purchase order',
-        description: 'Scan line items and reconcile inventory at the dock door.',
+        description: 'Scan PO lines the moment freight hits the dock.',
         icon: '📦'
       },
       {
-        href: '/delivery/schedule',
-        label: 'Schedule a delivery',
-        description: 'Reserve a delivery window and dispatch the logistics crew.',
-        icon: '🚚'
+        href: '/dashboard/inventory#incoming-trucks',
+        label: 'Check incoming trucks',
+        description: 'Coordinate bay assignments and arrival updates.',
+        icon: '🚛'
       },
       {
-        href: '/delivery/complete',
-        label: 'Complete a delivery',
-        description: 'Capture signatures, photos, and notes after drop-off.',
-        icon: '✅'
+        href: '/dashboard/inventory#print-labels',
+        label: 'Print labels',
+        description: 'Generate bin, shelf, and delivery labels on demand.',
+        icon: '🏷️'
       },
       {
-        href: '/labels/batch',
-        label: 'Batch print labels',
-        description: 'Send the morning pick list straight to the label printer.',
+        href: '/dashboard/inventory#batch-labels',
+        label: 'Batch label run',
+        description: 'Send a batch of labels straight to the printer for morning pulls.',
         icon: '🖨️'
       }
     ]
+  },
+  {
+    title: 'Delivery logistics',
+    description: 'Coordinate dispatch, paperwork, and proof-of-delivery details for every route.',
+    icon: '🚚',
+    href: '/dashboard/logistics',
+    focusAreas: ['Scheduling', 'Dispatch', 'Proof of delivery'],
+    quickTasks: [
+      {
+        href: '/dashboard/logistics#schedule-delivery',
+        label: 'Schedule delivery',
+        description: 'Reserve crews, trucks, and drop-off windows.',
+        icon: '📅'
+      },
+      {
+        href: '/dashboard/logistics#complete-delivery',
+        label: 'Complete delivery',
+        description: 'Capture photos, signatures, and notes on site.',
+        icon: '✅'
+      },
+      {
+        href: '/dashboard/logistics#delivery-paperwork',
+        label: 'Print delivery paperwork',
+        description: 'Batch print labels and documents before the crew departs.',
+        icon: '🖨️'
+      }
+    ]
+  },
+  {
+    title: 'Finance & insights',
+    description: 'Monitor cash flow, KPIs, and reporting from a single command center.',
+    icon: '💼',
+    href: '/dashboard/finance',
+    focusAreas: ['Invoices', 'Analytics', 'Reporting'],
+    quickTasks: [
+      {
+        href: '/dashboard/finance#view-invoices',
+        label: 'Review invoices',
+        description: 'Audit outstanding balances and payment status.',
+        icon: '💼'
+      },
+      {
+        href: '/dashboard/finance#view-analytics',
+        label: 'View analytics',
+        description: 'Track KPIs and operational throughput trends.',
+        icon: '📈'
+      },
+      {
+        href: '/dashboard/finance#view-reports',
+        label: 'Open reports',
+        description: 'Jump into curated dashboards for leadership updates.',
+        icon: '📊'
+      }
+    ]
   }
-];
+] as const;
 
 const workflowGuides = [
   {
@@ -176,19 +169,19 @@ const workflowGuides = [
     description: 'Stage the floor and make sure the day starts smooth.',
     steps: [
       {
-        href: '/imports/spreadsheet',
+        href: '/dashboard/purchasing#import-vendors',
         label: 'Import vendor updates',
         description: 'Load overnight price sheets or new assortments before doors open.',
         icon: '📥'
       },
       {
-        href: '/incoming-trucks',
+        href: '/dashboard/inventory#incoming-trucks',
         label: 'Confirm dock schedule',
         description: 'Glance at what is arriving and coordinate doors with the crew.',
         icon: '🚛'
       },
       {
-        href: '/labels/batch',
+        href: '/dashboard/inventory#print-labels',
         label: 'Refresh shelf labels',
         description: 'Print and stage signage for promos or resets that launch today.',
         icon: '🏷️'
@@ -200,19 +193,19 @@ const workflowGuides = [
     description: 'From the first question to a polished ticket.',
     steps: [
       {
-        href: '/kiosk/catalog',
+        href: '/dashboard/counter#lookup-item',
         label: 'Lookup or add the item',
         description: 'Find availability or add a missing SKU while the customer waits.',
         icon: '🔍'
       },
       {
-        href: '/kiosk/new-ticket',
+        href: '/dashboard/counter#create-ticket',
         label: 'Build the ticket',
         description: 'Scan items, apply pricing, and capture delivery preferences.',
         icon: '⚡'
       },
       {
-        href: '/review',
+        href: '/dashboard/counter#review-ocr',
         label: 'Queue for verification',
         description: 'Send handwriting to the OCR queue when you need a second set of eyes.',
         icon: '📝'
@@ -224,19 +217,19 @@ const workflowGuides = [
     description: 'Finish the customer promise and keep inventory aligned.',
     steps: [
       {
-        href: '/receiving',
+        href: '/dashboard/inventory#receive-po',
         label: 'Confirm receiving is done',
         description: 'Verify all purchase order lines are scanned into stock.',
         icon: '📦'
       },
       {
-        href: '/delivery/schedule',
+        href: '/dashboard/logistics#schedule-delivery',
         label: 'Schedule the drop-off',
         description: 'Assign a crew, truck, and time window while availability is fresh.',
         icon: '🚚'
       },
       {
-        href: '/delivery/complete',
+        href: '/dashboard/logistics#complete-delivery',
         label: 'Capture proof of delivery',
         description: 'Log photos, signatures, and notes before the team leaves the site.',
         icon: '✅'
@@ -269,41 +262,67 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="grid gap-10 lg:grid-cols-[1.2fr_1fr]">
+      <section className="grid gap-10 lg:grid-cols-[1.5fr_1fr]">
         <div className="space-y-10">
           <article className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow">
             <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
-                <h2 className="text-lg font-semibold text-white">Workspaces</h2>
-                <p className="text-sm text-slate-300">Jump to the area that matches the job in front of you.</p>
+                <h2 className="text-lg font-semibold text-white">Dashboards</h2>
+                <p className="text-sm text-slate-300">Pick a command center and use the quick tasks to jump to the screen you need.</p>
               </div>
-              <span className="text-xs font-medium text-slate-400">{workspaceSections.length} collections</span>
+              <span className="text-xs font-medium text-slate-400">{dashboards.length} areas</span>
             </header>
             <div className="space-y-5">
-              {workspaceSections.map((section) => (
-                <section key={section.title} className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-900/80 p-5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1">
-                      <h3 className="text-base font-semibold text-white">{section.title}</h3>
-                      <p className="text-sm text-slate-300">{section.description}</p>
-                    </div>
-                    <span className="text-xs font-medium text-slate-400">{section.items.length} tools</span>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {section.items.map((workspace) => (
-                      <Link
-                        key={workspace.href}
-                        href={workspace.href}
-                        className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-950/60 p-4 transition hover:border-slate-600 hover:bg-slate-900"
-                      >
-                        <span className="text-xl" aria-hidden>
-                          {workspace.icon}
+              {dashboards.map((dashboard) => (
+                <section
+                  key={dashboard.title}
+                  className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/70 p-5"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl" aria-hidden>
+                          {dashboard.icon}
                         </span>
                         <div className="space-y-1">
-                          <h4 className="text-sm font-semibold text-white">{workspace.label}</h4>
-                          <p className="text-xs text-slate-300">{workspace.description}</p>
+                          <h3 className="text-base font-semibold text-white">{dashboard.title}</h3>
+                          <p className="text-sm text-slate-300">{dashboard.description}</p>
                         </div>
-                        <span className="text-xs font-medium text-slate-400">Open</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {dashboard.focusAreas.map((area) => (
+                          <span
+                            key={area}
+                            className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-medium text-slate-300"
+                          >
+                            {area}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <Link
+                      href={dashboard.href}
+                      className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:border-sky-300 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+                    >
+                      Open dashboard
+                      <span aria-hidden>→</span>
+                    </Link>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {dashboard.quickTasks.map((task) => (
+                      <Link
+                        key={task.href}
+                        href={task.href}
+                        className="flex h-full flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 transition hover:border-slate-600 hover:bg-slate-900"
+                      >
+                        <span className="text-xl" aria-hidden>
+                          {task.icon}
+                        </span>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-white">{task.label}</p>
+                          <p className="text-xs text-slate-400">{task.description}</p>
+                        </div>
+                        <span className="mt-auto text-xs font-medium text-slate-400">Go to task</span>
                       </Link>
                     ))}
                   </div>
@@ -322,7 +341,10 @@ export default function HomePage() {
             </header>
             <div className="space-y-4">
               {workflowGuides.map((guide) => (
-                <section key={guide.title} className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/60 p-5">
+                <section
+                  key={guide.title}
+                  className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/60 p-5"
+                >
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1">
                       <h3 className="text-base font-semibold text-white">{guide.title}</h3>
@@ -352,47 +374,6 @@ export default function HomePage() {
                       </li>
                     ))}
                   </ol>
-                </section>
-              ))}
-            </div>
-          </article>
-
-          <article className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow">
-            <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <h2 className="text-lg font-semibold text-white">Quick actions</h2>
-                <p className="text-sm text-slate-300">Launch the task that will unblock the next step.</p>
-              </div>
-              <span className="text-xs font-medium text-slate-400">{quickActionGroups.length} groups</span>
-            </header>
-            <div className="space-y-4">
-              {quickActionGroups.map((group) => (
-                <section key={group.title} className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/60 p-5">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1">
-                      <h3 className="text-base font-semibold text-white">{group.title}</h3>
-                      <p className="text-sm text-slate-300">{group.description}</p>
-                    </div>
-                    <span className="text-xs font-medium text-slate-400">{group.items.length} shortcuts</span>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {group.items.map((action) => (
-                      <Link
-                        key={action.href}
-                        href={action.href}
-                        className="flex h-full flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-600 hover:bg-slate-900"
-                      >
-                        <span className="text-xl" aria-hidden>
-                          {action.icon}
-                        </span>
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-white">{action.label}</p>
-                          <p className="text-xs text-slate-400">{action.description}</p>
-                        </div>
-                        <span className="mt-auto text-xs font-medium text-slate-400">Launch</span>
-                      </Link>
-                    ))}
-                  </div>
                 </section>
               ))}
             </div>
