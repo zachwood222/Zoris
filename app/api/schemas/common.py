@@ -30,6 +30,13 @@ class ItemSummary(BaseModel):
     short_code: str
 
 
+class CustomerSummary(BaseModel):
+    customer_id: int
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+
 class InventoryAdjustRequest(BaseModel):
     item_id: int
     location_id: int

@@ -47,6 +47,13 @@ interface SaleLineDraft {
   qty: number;
 }
 
+interface CustomerSummary {
+  customer_id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+}
+
 type PaymentMethod =
   | 'cash'
   | 'check'
@@ -80,6 +87,12 @@ export default function KioskPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('pickup');
   const [deliveryFee, setDeliveryFee] = useState(120);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerResults, setCustomerResults] = useState<CustomerSummary[]>([]);
+  const [isCustomerLoading, setIsCustomerLoading] = useState(false);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
 
   const paymentMethodOptions = useMemo(
     () => [
@@ -316,6 +329,51 @@ export default function KioskPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedItem, closeDetail]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadCustomers = async () => {
+      setIsCustomerLoading(true);
+      setCustomerError(null);
+
+      try {
+        const headers = await buildAuthHeaders();
+        const params = customerSearch.trim() ? { q: customerSearch.trim() } : undefined;
+        const { data } = await axios.get<CustomerSummary[]>(`${api}/customers/search`, {
+          params,
+          signal: controller.signal,
+          headers
+        });
+        if (!cancelled) {
+          setCustomerResults(data);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error(error);
+        if (!cancelled) {
+          setCustomerError('Unable to load customers right now.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsCustomerLoading(false);
+        }
+      }
+    };
+
+    const handler = setTimeout(() => {
+      void loadCustomers();
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(handler);
+    };
+  }, [api, customerSearch]);
+
   const subtotal = useMemo(
     () =>
       lines.reduce((sum, line) => {
@@ -382,6 +440,41 @@ export default function KioskPage() {
     setSelectedItem(item);
   };
 
+  useEffect(() => {
+    if (selectedCustomerId === null) {
+      setSelectedCustomer(null);
+      return;
+    }
+    const match = customerResults.find((customer) => customer.customer_id === selectedCustomerId);
+    if (match) {
+      setSelectedCustomer(match);
+    }
+  }, [customerResults, selectedCustomerId]);
+
+  const handleCustomerChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const { value } = event.target;
+    if (!value) {
+      setSelectedCustomerId(null);
+      setSelectedCustomer(null);
+      return;
+    }
+
+    const id = Number.parseInt(value, 10);
+    if (Number.isNaN(id)) {
+      setSelectedCustomerId(null);
+      setSelectedCustomer(null);
+      return;
+    }
+
+    setSelectedCustomerId(id);
+    const match = customerResults.find((customer) => customer.customer_id === id);
+    if (match) {
+      setSelectedCustomer(match);
+    } else {
+      setSelectedCustomer((current) => (current && current.customer_id === id ? current : null));
+    }
+  };
+
   const handleAddToTicket = () => {
     if (!selectedItem) {
       return;
@@ -405,13 +498,20 @@ export default function KioskPage() {
   const finalize = async () => {
     setIsFinalizing(true);
     setStatus(null);
+    const finalizedCustomerName = selectedCustomer?.name ?? null;
 
     try {
       const headers = await buildAuthHeaders();
-      const { data: create } = await axios.post<{ sale_id: number }>(`${api}/sales`, {
+      const payload: Record<string, unknown> = {
         created_by: 'kiosk',
         source: 'kiosk'
-      }, { headers });
+      };
+      if (selectedCustomerId !== null) {
+        payload.customer_id = selectedCustomerId;
+      }
+      const { data: create } = await axios.post<{ sale_id: number }>(`${api}/sales`, payload, {
+        headers
+      });
       const saleId = create.sale_id;
 
       for (const line of lines) {
@@ -434,9 +534,14 @@ export default function KioskPage() {
 
       setStatus({
         kind: 'success',
-        message: `Sale #${finalizeData.sale_id} finalized successfully.`
+        message: `Sale #${finalizeData.sale_id} finalized successfully${
+          finalizedCustomerName ? ` for ${finalizedCustomerName}` : ''
+        }.`
       });
       setLines([]);
+      setSelectedCustomerId(null);
+      setSelectedCustomer(null);
+      setCustomerSearch('');
     } catch (error) {
       console.error(error);
       setStatus({
@@ -670,6 +775,64 @@ export default function KioskPage() {
           <div className="space-y-4 rounded-2xl border border-slate-800/80 bg-slate-950/40 p-5 text-sm text-slate-300">
             <div className="space-y-4">
               <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Customer search
+                <input
+                  type="text"
+                  value={customerSearch}
+                  onChange={(event) => setCustomerSearch(event.target.value)}
+                  placeholder="Search by name, email, or phone"
+                  className="mt-2 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-inner shadow-black/20 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30"
+                  autoComplete="off"
+                />
+              </label>
+
+              <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Customer
+                <select
+                  className="mt-2 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-inner shadow-black/20 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30"
+                  value={selectedCustomerId !== null ? String(selectedCustomerId) : ''}
+                  onChange={handleCustomerChange}
+                >
+                  <option value="" className="bg-slate-900 text-white">
+                    Walk-in customer
+                  </option>
+                  {customerResults.map((customer) => (
+                    <option
+                      key={customer.customer_id}
+                      value={customer.customer_id}
+                      className="bg-slate-900 text-white"
+                    >
+                      {`${customer.name}${
+                        customer.email ? ` • ${customer.email}` : customer.phone ? ` • ${customer.phone}` : ''
+                      }`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {isCustomerLoading && (
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Loading customers…</p>
+              )}
+              {customerError && (
+                <p className="text-xs text-rose-300">{customerError}</p>
+              )}
+              {selectedCustomer && (
+                <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 px-4 py-3 text-xs text-slate-300">
+                  <p className="text-sm font-semibold text-white">{selectedCustomer.name}</p>
+                  {selectedCustomer.email && (
+                    <p className="mt-1 text-slate-400">
+                      Email: <span className="text-slate-200">{selectedCustomer.email}</span>
+                    </p>
+                  )}
+                  {selectedCustomer.phone && (
+                    <p className="mt-1 text-slate-400">
+                      Phone: <span className="text-slate-200">{selectedCustomer.phone}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
                 Payment method
                 <select
                   className="mt-2 w-full rounded-xl border border-slate-700/80 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-inner shadow-black/20 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30"
@@ -718,6 +881,12 @@ export default function KioskPage() {
             </div>
 
             <div className="space-y-3 border-t border-slate-800/60 pt-4">
+              <div className="flex items-center justify-between">
+                <span>Customer</span>
+                <span className="font-semibold text-white">
+                  {selectedCustomer ? selectedCustomer.name : 'Walk-in customer'}
+                </span>
+              </div>
               <div className="flex items-center justify-between">
                 <span>Items</span>
                 <span className="font-semibold text-white">{lines.length}</span>
