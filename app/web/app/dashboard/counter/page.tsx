@@ -50,6 +50,10 @@ const supportingDashboards = [
   }
 ] as const;
 
+// Define types for better TypeScript support
+type QuickAction = typeof quickActions[number];
+type SupportingDashboard = typeof supportingDashboards[number];
+
 export default function CounterDashboardPage() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 pb-16 pt-12 text-slate-100 lg:px-12">
@@ -73,7 +77,7 @@ export default function CounterDashboardPage() {
           <p className="text-sm text-slate-300">Jump straight into the workflows counter teams use all day.</p>
         </header>
         <div className="grid gap-4 md:grid-cols-2">
-          {quickActions.map((action) => (
+          {quickActions.map((action: QuickAction) => (
             <article
               key={action.id}
               id={action.id}
@@ -108,7 +112,7 @@ export default function CounterDashboardPage() {
           <p className="text-sm text-slate-300">Dive deeper into catalog and performance data that feeds the counter.</p>
         </header>
         <div className="grid gap-4 sm:grid-cols-2">
-          {supportingDashboards.map((dashboard) => (
+          {supportingDashboards.map((dashboard: SupportingDashboard) => (
             <Link
               key={dashboard.href}
               href={dashboard.href}
