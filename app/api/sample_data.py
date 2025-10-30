@@ -132,6 +132,44 @@ SAMPLE_ITEMS = [
 SAMPLE_CUSTOMERS = [
     {"name": "Jordan Alvarez", "phone": "555-0100", "email": "jordan@example.com"},
     {"name": "Sasha Patel", "phone": "555-0110", "email": "sasha@example.com"},
+    {"name": "Taylor Brooks", "phone": "555-0120", "email": "taylor@example.com"},
+    {"name": "Morgan Lee", "phone": "555-0130", "email": "morgan@example.com"},
+    {"name": "Devon Clarke", "phone": "555-0140", "email": "devon@example.com"},
+]
+
+SAMPLE_DELIVERY_SALES = [
+    {
+        "external_ref": "DELIV-1001",
+        "customer_email": "jordan@example.com",
+        "customer_name": "Jordan Alvarez",
+        "status": "open",
+        "delivery_status": "scheduled",
+        "subtotal": 1899.00,
+    },
+    {
+        "external_ref": "DELIV-1002",
+        "customer_email": "sasha@example.com",
+        "customer_name": "Sasha Patel",
+        "status": "open",
+        "delivery_status": "out_for_delivery",
+        "subtotal": 1299.00,
+    },
+    {
+        "external_ref": "DELIV-1003",
+        "customer_email": "taylor@example.com",
+        "customer_name": "Taylor Brooks",
+        "status": "fulfilled",
+        "delivery_status": "delivered",
+        "subtotal": 999.00,
+    },
+    {
+        "external_ref": "DELIV-1004",
+        "customer_email": "morgan@example.com",
+        "customer_name": "Morgan Lee",
+        "status": "open",
+        "delivery_status": "failed",
+        "subtotal": 749.00,
+    },
 ]
 
 LABEL_XML = """<label><text>Sample</text></label>"""
@@ -261,6 +299,55 @@ async def ensure_sample_data(session: AsyncSession) -> SampleDataSummary:
         sale.subtotal = subtotal
         sale.tax = round(subtotal * 0.07, 2)
         sale.total = sale.subtotal + sale.tax
+
+    item_list = list(item_map.values())
+    for index, sale_seed in enumerate(SAMPLE_DELIVERY_SALES):
+        existing = await session.scalar(
+            select(domain.Sale).where(domain.Sale.external_ref == sale_seed["external_ref"])
+        )
+        if existing is not None:
+            continue
+
+        customer = customer_map.get(sale_seed["customer_email"])
+        if customer is None:
+            continue
+
+        subtotal = float(sale_seed["subtotal"])
+        tax = round(subtotal * 0.07, 2)
+        total = subtotal + tax
+
+        delivery_sale = domain.Sale(
+            customer_id=customer.customer_id,
+            status=sale_seed["status"],
+            sale_date=utc_now(),
+            created_at=utc_now(),
+            subtotal=subtotal,
+            tax=tax,
+            total=total,
+            deposit_amt=0,
+            created_by="sample.loader",
+            source="sample_data",
+            external_ref=sale_seed["external_ref"],
+            delivery_requested=True,
+            delivery_status=sale_seed["delivery_status"],
+            ocr_payload={"customer_name": sale_seed["customer_name"]},
+        )
+        session.add(delivery_sale)
+        await session.flush()
+        created = True
+
+        if item_list:
+            item = item_list[index % len(item_list)]
+            session.add(
+                domain.SaleLine(
+                    sale_id=delivery_sale.sale_id,
+                    item_id=item.item_id,
+                    location_id=location.location_id,
+                    qty=1,
+                    unit_price=item.price,
+                    tax=round(float(item.price or 0) * 0.07, 2),
+                )
+            )
 
     po = await session.scalar(
         select(domain.PurchaseOrder).where(domain.PurchaseOrder.notes == "Sample purchase order")

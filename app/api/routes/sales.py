@@ -4,7 +4,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +42,65 @@ async def list_sales(session: AsyncSession = Depends(get_session)) -> dict:
                 "customer_name": (sale.ocr_payload or {}).get("customer_name"),
             }
             for sale in drafts
+        ]
+    }
+
+
+@router.get("/delivery-options")
+async def list_delivery_options(session: AsyncSession = Depends(get_session)) -> dict:
+    statement = (
+        select(Sale)
+        .options(selectinload(Sale.customer))
+        .where(
+            or_(
+                Sale.status.in_(["open", "fulfilled", "draft"]),
+                Sale.delivery_requested.is_(True),
+                Sale.delivery_status.is_not(None),
+            )
+        )
+        .order_by(Sale.sale_date.desc())
+        .limit(100)
+    )
+    rows = await session.execute(statement)
+    sales = rows.scalars()
+    return {
+        "sales": [
+            {
+                "sale_id": sale.sale_id,
+                "ticket_number": sale.external_ref,
+                "customer_name": sale.customer.name if sale.customer else (sale.ocr_payload or {}).get("customer_name"),
+                "status": sale.status,
+                "delivery_status": sale.delivery_status,
+                "total": float(sale.total or 0),
+            }
+            for sale in sales
+        ]
+    }
+
+
+@router.get("/deliveries")
+async def list_deliveries(session: AsyncSession = Depends(get_session)) -> dict:
+    statement = (
+        select(Sale)
+        .options(selectinload(Sale.customer))
+        .where(Sale.delivery_status.is_not(None))
+        .order_by(Sale.sale_date.desc())
+        .limit(50)
+    )
+    rows = await session.execute(statement)
+    deliveries = rows.scalars()
+    return {
+        "deliveries": [
+            {
+                "sale_id": sale.sale_id,
+                "ticket_number": sale.external_ref,
+                "customer_name": sale.customer.name if sale.customer else (sale.ocr_payload or {}).get("customer_name"),
+                "delivery_status": sale.delivery_status,
+                "status": sale.status,
+                "total": float(sale.total or 0),
+                "scheduled_for": sale.sale_date.isoformat() if sale.sale_date else None,
+            }
+            for sale in deliveries
         ]
     }
 
