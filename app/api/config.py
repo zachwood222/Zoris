@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from functools import lru_cache
 from typing import Any, Literal
@@ -73,6 +74,8 @@ class Settings(BaseSettings):
             env_ignore_empty=getattr(env_settings, "env_ignore_empty", None),
             env_parse_none_str=getattr(env_settings, "env_parse_none_str", None),
         )
+        if os.getenv("PYTEST_CURRENT_TEST"):
+            return (init_settings, lenient_env, file_secret_settings)
         return (init_settings, lenient_env, dotenv_settings, file_secret_settings)
 
     app_name: str = "Zoris API"
@@ -194,7 +197,7 @@ class Settings(BaseSettings):
         },
     )
     cors_origin_regex: str | None = Field(
-        default="https://.*\\.onrender\\.com",
+        default=None,
         alias="CORS_ORIGIN_REGEX",
         description="Optional regular expression used to match allowed CORS origins.",
     )

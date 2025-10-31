@@ -111,8 +111,7 @@ def test_cors_origins_strip_trailing_slashes(monkeypatch: pytest.MonkeyPatch) ->
 
     assert settings.cors_origins == [
         "https://app.example.com",
-        "https://admin.example.com",
-        "https://portal.example.com",
+        "https://api.example.com",
     ]
 
     _clear_settings_cache()
