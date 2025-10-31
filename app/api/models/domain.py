@@ -264,6 +264,9 @@ class Sale(Base, TimestampMixin):
     ocr_payload: Mapped[Optional[dict]] = mapped_column(JSON)
     delivery_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     delivery_status: Mapped[Optional[str]] = mapped_column(delivery_status_enum)
+    payment_method: Mapped[Optional[str]] = mapped_column(String(50))
+    fulfillment_type: Mapped[Optional[str]] = mapped_column(String(20))
+    delivery_fee: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
 
     customer: Mapped[Optional[Customer]] = relationship()
     lines: Mapped[list["SaleLine"]] = relationship(back_populates="sale", cascade="all, delete-orphan")

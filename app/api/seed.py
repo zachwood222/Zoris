@@ -117,6 +117,9 @@ async def seed() -> None:
             deposit_amt=0,
             created_by="demo.associate",
             source="pos",
+            payment_method="cash",
+            fulfillment_type="pickup",
+            delivery_fee=0,
         )
         session.add(open_sale)
         await session.flush()
@@ -148,6 +151,9 @@ async def seed() -> None:
             created_by="ocr.pipeline",
             source="ocr_ticket",
             ocr_confidence=0.82,
+            payment_method="credit_card",
+            fulfillment_type="pickup",
+            delivery_fee=0,
         )
         session.add(draft_ocr_sale)
         await session.flush()
@@ -178,6 +184,9 @@ async def seed() -> None:
             deposit_amt=50,
             created_by="demo.associate",
             source="pos",
+            payment_method="check",
+            fulfillment_type="delivery",
+            delivery_fee=25,
         )
         session.add(fulfilled_sale)
         await session.flush()

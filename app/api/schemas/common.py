@@ -72,6 +72,14 @@ class SaleFinalizeResponse(BaseModel):
     total: float
 
 
+class SaleUpdateRequest(BaseModel):
+    customer_id: Optional[int] = None
+    payment_method: Optional[str] = None
+    fulfillment_type: Optional[str] = None
+    delivery_fee: float = 0
+    lines: list[SaleLineRequest] = Field(default_factory=list)
+
+
 class SaleDeliveryRequest(BaseModel):
     delivery_requested: bool
     address: dict | None = None
@@ -106,6 +114,24 @@ class OCRSaleTicketResponse(BaseModel):
     review_required: bool
 
 
+class SaleLineSummary(BaseModel):
+    sale_line_id: int
+    item_id: int
+    sku: str
+    description: str
+    qty: float
+    unit_price: float
+    location_id: int
+    short_code: str | None = None
+
+
+class SaleCustomerSummary(BaseModel):
+    customer_id: int
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+
 class SaleDetailResponse(BaseModel):
     sale_id: int
     status: str
@@ -115,6 +141,11 @@ class SaleDetailResponse(BaseModel):
     ocr_confidence: float
     ocr_fields: dict
     attachments: list[AttachmentSummary]
+    customer: SaleCustomerSummary | None = None
+    payment_method: str | None = None
+    fulfillment_type: str | None = None
+    delivery_fee: float = 0
+    lines: list[SaleLineSummary] = []
 
 
 class LabelRenderRequest(BaseModel):

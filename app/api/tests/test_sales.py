@@ -8,8 +8,9 @@ from .. import sample_data
 from ..db import SessionLocal, engine
 from ..models.base import Base
 from ..models.domain import Barcode, Item, Location, Sale, SaleLine
-from ..routes.sales import add_line, finalize_sale
-from ..schemas.common import SaleLineRequest
+from ..routes.sales import add_line, finalize_sale, update_sale
+from ..schemas.common import SaleLineRequest, SaleUpdateRequest
+from ..security import User
 
 
 @pytest.mark.asyncio
@@ -105,3 +106,57 @@ async def test_sales_dashboard_lists_open_and_fulfilled(client) -> None:
     # demo dataset should seed at least one open and one fulfilled sale
     assert payload["open_sales"], "expected sample open sales"
     assert payload["fulfilled_sales"], "expected sample fulfilled sales"
+
+
+@pytest.mark.asyncio
+async def test_update_sale_replaces_lines_and_totals() -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with SessionLocal() as session:
+        item = Item(
+            sku="EDIT-ITEM",
+            description="Editable Item",
+            unit_cost=Decimal("12.00"),
+            price=Decimal("18.00"),
+            short_code="EDIT",
+        )
+        location = Location(name="Front", type="retail")
+        sale = Sale(status="open", created_by="tester", source="manual")
+        session.add_all([item, location, sale])
+        await session.flush()
+
+        sale_line = SaleLine(
+            sale_id=sale.sale_id,
+            item_id=item.item_id,
+            location_id=location.location_id,
+            qty=1,
+            unit_price=item.price,
+        )
+        sale.subtotal = sale.total = Decimal("18.00")
+        session.add(sale_line)
+        await session.commit()
+        sale_id = sale.sale_id
+        location_id = location.location_id
+
+    payload = SaleUpdateRequest(
+        customer_id=None,
+        payment_method="cash",
+        fulfillment_type="pickup",
+        delivery_fee=5,
+        lines=[SaleLineRequest(sku="EDIT-ITEM", qty=3, location_id=location_id)],
+    )
+
+    async with SessionLocal() as session:
+        user = User(id="tester", roles={"Floor"})
+        response = await update_sale(sale_id, payload, session=session, user=user)
+        await session.commit()
+
+    assert response.payment_method == "cash"
+    assert response.fulfillment_type == "pickup"
+    assert response.delivery_fee == 5
+    assert len(response.lines) == 1
+    assert response.lines[0].qty == pytest.approx(3)
+    assert response.subtotal == pytest.approx(54)
+    assert response.total == pytest.approx(59)
