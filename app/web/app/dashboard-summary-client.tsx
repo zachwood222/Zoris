@@ -34,7 +34,7 @@ export function DashboardMetrics() {
   const usingFallback = Boolean(error);
 
   const metricDestinations: Record<string, string> = {
-    'Open Sales': '/dashboard/analytics#open-sales',
+    'Open Sales': '/dashboard/sales#open-sales',
     'Draft OCR Tickets': '/dashboard/analytics#draft-ocr-tickets',
     'Inbound Purchase Orders': '/dashboard/purchase-orders',
     'Active Receivers': '/dashboard/analytics#active-receivers'
@@ -129,9 +129,26 @@ export function DashboardActivityList() {
       )}
       {activity.map((item) => (
         <li key={`${item.title}-${item.time}`} className="border-l-2 border-sky-500/60 pl-4">
-          <p className="text-sm font-semibold text-white">{item.title}</p>
-          <p className="mt-1 text-xs text-slate-300">{item.description}</p>
-          <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-slate-500">{item.time}</p>
+          {item.href ? (
+            <Link
+              href={item.href}
+              className="group block -ml-3 rounded-xl border border-transparent px-3 py-2 transition hover:border-white/25 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+            >
+              <p className="text-sm font-semibold text-white">{item.title}</p>
+              <p className="mt-1 text-xs text-slate-300">{item.description}</p>
+              <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-slate-500">{item.time}</p>
+              <span className="mt-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-sky-300 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                View details
+                <span aria-hidden>→</span>
+              </span>
+            </Link>
+          ) : (
+            <div>
+              <p className="text-sm font-semibold text-white">{item.title}</p>
+              <p className="mt-1 text-xs text-slate-300">{item.description}</p>
+              <p className="mt-2 text-[11px] uppercase tracking-[0.3em] text-slate-500">{item.time}</p>
+            </div>
+          )}
         </li>
       ))}
       {!activity.length && (

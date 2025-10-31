@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from .. import sample_data
 from ..db import SessionLocal, engine
 from ..models.base import Base
 from ..models.domain import Barcode, Item, Location, Sale, SaleLine
@@ -84,3 +85,23 @@ async def test_finalize_sale_eager_loads_lines() -> None:
 
     assert response.status == "open"
     assert float(response.total) == pytest.approx(30.0)
+
+
+@pytest.mark.asyncio
+async def test_sales_dashboard_lists_open_and_fulfilled(client) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await sample_data.apply()
+
+    response = await client.get("/sales/dashboard")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert "open_sales" in payload
+    assert "fulfilled_sales" in payload
+    assert isinstance(payload["open_sales"], list)
+    assert isinstance(payload["fulfilled_sales"], list)
+    # demo dataset should seed at least one open and one fulfilled sale
+    assert payload["open_sales"], "expected sample open sales"
+    assert payload["fulfilled_sales"], "expected sample fulfilled sales"

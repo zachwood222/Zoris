@@ -21,6 +21,7 @@ from ..schemas.common import (
     SaleDetailResponse,
     SaleLineRequest,
 )
+from ..schemas.sales import SaleDashboardEntry, SalesDashboardResponse
 from ..security import User, require_roles
 from ..services import zapier
 from ..utils.datetime import utc_now
@@ -44,6 +45,55 @@ async def list_sales(session: AsyncSession = Depends(get_session)) -> dict:
             for sale in drafts
         ]
     }
+
+
+def _to_dashboard_entry(sale: Sale) -> SaleDashboardEntry:
+    customer_name = None
+    if sale.customer and sale.customer.name:
+        customer_name = sale.customer.name
+    else:
+        payload = sale.ocr_payload or {}
+        if isinstance(payload, dict):
+            customer_name = payload.get("customer_name")
+
+    return SaleDashboardEntry(
+        sale_id=sale.sale_id,
+        ticket_number=sale.external_ref,
+        customer_name=customer_name,
+        status=sale.status,
+        total=float(sale.total or 0),
+        created_at=sale.created_at,
+        sale_date=sale.sale_date,
+        created_by=sale.created_by,
+    )
+
+
+@router.get("/dashboard", response_model=SalesDashboardResponse)
+async def sales_dashboard(session: AsyncSession = Depends(get_session)) -> SalesDashboardResponse:
+    open_stmt = (
+        select(Sale)
+        .options(selectinload(Sale.customer))
+        .where(Sale.status == "open")
+        .order_by(Sale.sale_date.desc(), Sale.sale_id.desc())
+        .limit(50)
+    )
+    fulfilled_stmt = (
+        select(Sale)
+        .options(selectinload(Sale.customer))
+        .where(Sale.status.in_(["fulfilled", "void"]))
+        .order_by(Sale.sale_date.desc(), Sale.sale_id.desc())
+        .limit(50)
+    )
+
+    open_sales_rows = await session.execute(open_stmt)
+    fulfilled_sales_rows = await session.execute(fulfilled_stmt)
+
+    open_sales = [_to_dashboard_entry(sale) for sale in open_sales_rows.scalars()]
+    fulfilled_sales = [
+        _to_dashboard_entry(sale) for sale in fulfilled_sales_rows.scalars()
+    ]
+
+    return SalesDashboardResponse(open_sales=open_sales, fulfilled_sales=fulfilled_sales)
 
 
 @router.get("/delivery-options")

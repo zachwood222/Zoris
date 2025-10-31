@@ -55,25 +55,46 @@ function SectionShell({
 
       <div className="mt-8 space-y-4">
         {items.length ? (
-          items.map((item) => (
-            <article
-              key={item.id}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-white/25 hover:bg-white/[0.08]"
-            >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <h3 className="text-base font-semibold text-white">{item.title}</h3>
-                  <p className="text-sm text-slate-300">{item.subtitle}</p>
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">{item.meta}</p>
+          items.map((item) => {
+            const card = (
+              <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-white/25 hover:bg-white/[0.08]">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="text-base font-semibold text-white">{item.title}</h3>
+                    <p className="text-sm text-slate-300">{item.subtitle}</p>
+                    <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">{item.meta}</p>
+                  </div>
+                  <span
+                    className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] ${item.badgeClass}`}
+                  >
+                    {item.badgeLabel}
+                  </span>
                 </div>
-                <span
-                  className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] ${item.badgeClass}`}
+                {item.href ? (
+                  <span className="mt-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-sky-300 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                    View details
+                    <span aria-hidden>→</span>
+                  </span>
+                ) : null}
+              </article>
+            );
+
+            if (item.href) {
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className="group block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
                 >
-                  {item.badgeLabel}
-                </span>
-              </div>
-            </article>
-          ))
+                  {card}
+                </Link>
+              );
+            }
+
+            return (
+              <div key={item.id}>{card}</div>
+            );
+          })
         ) : (
           <p className="rounded-xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-slate-300">
             Nothing to show here yet. As activity lands, it will populate automatically.

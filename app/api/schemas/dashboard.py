@@ -15,6 +15,7 @@ class DashboardActivity(BaseModel):
     title: str
     description: str
     time: str
+    href: str | None = None
 
 
 class DashboardSystemStatus(BaseModel):
@@ -31,6 +32,7 @@ class DashboardDrilldownItem(BaseModel):
     meta: str
     badge_label: str = Field(alias="badgeLabel")
     badge_class: str = Field(alias="badgeClass")
+    href: str | None = None
 
     model_config = {"populate_by_name": True}
 
