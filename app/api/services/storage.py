@@ -24,8 +24,10 @@ class StorageService:
             aws_secret_access_key=settings.s3_secret_key,
         )
         self.bucket = settings.s3_bucket
+        self._bucket_verified = False
 
     def upload_file(self, *, key: str, fileobj: BinaryIO, content_type: str) -> str:
+        self._ensure_bucket()
         try:
             self.client.upload_fileobj(
                 fileobj,
@@ -38,6 +40,17 @@ class StorageService:
         except (BotoCoreError, ClientError) as exc:
             raise StorageError("storage_upload_failed") from exc
         return f"{settings.s3_endpoint}/{self.bucket}/{key}"
+
+    def _ensure_bucket(self) -> None:
+        if self._bucket_verified:
+            return
+        try:
+            self.ensure_bucket()
+        except EndpointConnectionError as exc:
+            raise StorageError("storage_endpoint_unreachable") from exc
+        except (BotoCoreError, ClientError) as exc:
+            raise StorageError("storage_bucket_unavailable") from exc
+        self._bucket_verified = True
 
     def ensure_bucket(self) -> None:
         buckets = [b["Name"] for b in self.client.list_buckets().get("Buckets", [])]
