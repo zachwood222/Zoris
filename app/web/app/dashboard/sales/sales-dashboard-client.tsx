@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import useSWR from 'swr';
 
-import { buildAuthHeaders, getApiBase } from '../../lib/api';
+import { buildAuthHeaders, getApiBase } from '../../../lib/api';
 
 type SaleDashboardEntry = {
   sale_id: number;
