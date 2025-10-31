@@ -43,5 +43,9 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
-      - name: Test
-        run: npm test
+      - name: Unit tests
+        run: npm run test:unit
+      - name: E2E tests
+        env:
+          SKIP_API_PROXY: '1'
+        run: npm run test:e2e

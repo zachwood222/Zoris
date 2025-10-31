@@ -5,7 +5,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './tests/setup-tests.ts',
-    include: ['tests/**/*.test.{ts,tsx}'],
+    include: ['tests/unit/**/*.test.{ts,tsx}'],
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],
     outputFile: process.env.CI ? { junit: 'test-results/vitest-junit.xml' } : undefined
   },

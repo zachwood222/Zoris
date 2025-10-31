@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('dashboard home', () => {
   test('shows live hero status and navigation tiles', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Command your retail operations' })).toBeVisible();
     const hero = page.getByTestId('hero-status-card');
     await expect(hero).toContainText(/Today/i);
@@ -11,7 +11,7 @@ test.describe('dashboard home', () => {
   });
 
   test('quick actions route to real pages', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('/');
     const actions = [
       { name: /Create assisted sale/i, heading: /Sales Kiosk/i },
       { name: /Schedule receiving window/i, heading: /Schedule Receiving Window/i },
@@ -29,7 +29,7 @@ test.describe('dashboard home', () => {
       await Promise.all([page.waitForURL(`**${href}`), link.click()]);
       await expect(page.getByRole('heading', { name: action.heading })).toBeVisible();
       await page.goBack();
-      await page.waitForURL('http://localhost:3000/');
+      await page.waitForURL('**/');
     }
   });
 });

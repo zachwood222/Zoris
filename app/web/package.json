@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "playwright test",
-    "test:component": "vitest run"
+    "test:e2e": "playwright test",
+    "test:unit": "vitest run",
+    "test": "npm run test:e2e"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.20.0",
