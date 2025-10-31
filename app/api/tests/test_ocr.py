@@ -14,6 +14,7 @@ from app.api.models.base import Base
 from app.api.models.domain import Attachment, Sale
 from app.api.routes import ocr
 from app.api.services.ocr.base import OcrDocument, OcrWord
+from app.api.services.storage import StorageError
 
 
 class _StubPixmap:
@@ -114,3 +115,33 @@ async def test_upload_pdf_ticket_uses_document_attachment_kind(
     assert attachment.kind == "document_ticket"
     assert sale.ocr_payload is not None
     assert sale.ocr_payload.get("ticket_id") == "TICKET-123"
+
+
+@pytest.mark.asyncio
+async def test_upload_ticket_handles_storage_failures(
+    monkeypatch: pytest.MonkeyPatch, client: AsyncClient
+) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    def failing_upload_file(*, key: str, fileobj: BinaryIO, content_type: str) -> str:
+        raise StorageError("boom")
+
+    monkeypatch.setattr(ocr.storage_service, "upload_file", failing_upload_file)
+
+    async def override_provider() -> _StubProvider:
+        return _StubProvider()
+
+    app.dependency_overrides[ocr.get_provider] = override_provider
+
+    try:
+        response = await client.post(
+            "/ocr/sale-ticket",
+            files={"image": ("ticket.png", b"PNGDATA", "image/png")},
+        )
+    finally:
+        app.dependency_overrides.pop(ocr.get_provider, None)
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "storage_unavailable"}

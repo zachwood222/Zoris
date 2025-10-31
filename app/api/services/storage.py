@@ -4,10 +4,15 @@ from __future__ import annotations
 from typing import BinaryIO
 
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
 
 from ..config import get_settings
 
 settings = get_settings()
+
+
+class StorageError(RuntimeError):
+    """Base exception raised when storage operations fail."""
 
 
 class StorageService:
@@ -21,7 +26,17 @@ class StorageService:
         self.bucket = settings.s3_bucket
 
     def upload_file(self, *, key: str, fileobj: BinaryIO, content_type: str) -> str:
-        self.client.upload_fileobj(fileobj, self.bucket, key, ExtraArgs={"ContentType": content_type})
+        try:
+            self.client.upload_fileobj(
+                fileobj,
+                self.bucket,
+                key,
+                ExtraArgs={"ContentType": content_type},
+            )
+        except EndpointConnectionError as exc:
+            raise StorageError("storage_endpoint_unreachable") from exc
+        except (BotoCoreError, ClientError) as exc:
+            raise StorageError("storage_upload_failed") from exc
         return f"{settings.s3_endpoint}/{self.bucket}/{key}"
 
     def ensure_bucket(self) -> None:

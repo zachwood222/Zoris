@@ -15,7 +15,7 @@ from ..schemas.common import OCRSaleTicketResponse
 from ..services.ocr import parser
 from ..services.ocr.base import OcrDocument
 from ..services.ocr.tesseract import TesseractProvider
-from ..services.storage import storage_service
+from ..services.storage import StorageError, storage_service
 
 router = APIRouter()
 settings = get_settings()
@@ -71,11 +71,14 @@ async def upload_ticket(
 
     storage_content_type = "application/pdf" if is_pdf else (content_type or "image/jpeg")
     with open(upload_path, "rb") as fh:
-        doc_url = storage_service.upload_file(
-            key=f"tickets/{upload_path.name}",
-            fileobj=fh,
-            content_type=storage_content_type,
-        )
+        try:
+            doc_url = storage_service.upload_file(
+                key=f"tickets/{upload_path.name}",
+                fileobj=fh,
+                content_type=storage_content_type,
+            )
+        except StorageError as exc:
+            raise HTTPException(status_code=503, detail="storage_unavailable") from exc
     document: OcrDocument = await provider.analyze(str(ocr_input_path))
     parsed = await parser.parse_ticket(document)
     parsed_fields: dict[str, object | None] = {
