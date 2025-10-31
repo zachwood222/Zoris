@@ -32,6 +32,27 @@ from ..utils.datetime import utc_now
 router = APIRouter()
 
 
+def _extract_last_name(name: str | None) -> str | None:
+    """Return the last name token from a customer name string."""
+
+    if not name:
+        return None
+
+    normalized = name.strip()
+    if not normalized:
+        return None
+
+    if "," in normalized:
+        last_name = normalized.split(",", 1)[0].strip()
+        return last_name or None
+
+    parts = normalized.split()
+    if not parts:
+        return None
+
+    return parts[-1]
+
+
 @router.get("")
 async def list_sales(session: AsyncSession = Depends(get_session)) -> dict:
     drafts = (
@@ -43,7 +64,9 @@ async def list_sales(session: AsyncSession = Depends(get_session)) -> dict:
                 "sale_id": sale.sale_id,
                 "ocr_confidence": float(sale.ocr_confidence or 0),
                 "total": float(sale.total or 0),
-                "customer_name": (sale.ocr_payload or {}).get("customer_name"),
+                "customer_name": _extract_last_name(
+                    (sale.ocr_payload or {}).get("customer_name")
+                ),
             }
             for sale in drafts
         ]
@@ -53,11 +76,11 @@ async def list_sales(session: AsyncSession = Depends(get_session)) -> dict:
 def _to_dashboard_entry(sale: Sale) -> SaleDashboardEntry:
     customer_name = None
     if sale.customer and sale.customer.name:
-        customer_name = sale.customer.name
+        customer_name = _extract_last_name(sale.customer.name)
     else:
         payload = sale.ocr_payload or {}
         if isinstance(payload, dict):
-            customer_name = payload.get("customer_name")
+            customer_name = _extract_last_name(payload.get("customer_name"))
 
     return SaleDashboardEntry(
         sale_id=sale.sale_id,
@@ -121,7 +144,11 @@ async def list_delivery_options(session: AsyncSession = Depends(get_session)) ->
             {
                 "sale_id": sale.sale_id,
                 "ticket_number": sale.external_ref,
-                "customer_name": sale.customer.name if sale.customer else (sale.ocr_payload or {}).get("customer_name"),
+                "customer_name": _extract_last_name(
+                    sale.customer.name
+                    if sale.customer
+                    else (sale.ocr_payload or {}).get("customer_name")
+                ),
                 "status": sale.status,
                 "delivery_status": sale.delivery_status,
                 "total": float(sale.total or 0),
@@ -147,7 +174,11 @@ async def list_deliveries(session: AsyncSession = Depends(get_session)) -> dict:
             {
                 "sale_id": sale.sale_id,
                 "ticket_number": sale.external_ref,
-                "customer_name": sale.customer.name if sale.customer else (sale.ocr_payload or {}).get("customer_name"),
+                "customer_name": _extract_last_name(
+                    sale.customer.name
+                    if sale.customer
+                    else (sale.ocr_payload or {}).get("customer_name")
+                ),
                 "delivery_status": sale.delivery_status,
                 "status": sale.status,
                 "total": float(sale.total or 0),
