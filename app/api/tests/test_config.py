@@ -69,6 +69,7 @@ def test_log_level_normalization(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_default_cors_origins_cover_local_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
     _clear_settings_cache()
 
     settings = config.get_settings()
@@ -77,6 +78,22 @@ def test_default_cors_origins_cover_local_hosts(monkeypatch: pytest.MonkeyPatch)
     assert "http://127.0.0.1:3000" in settings.cors_origins
     assert "http://0.0.0.0:3000" in settings.cors_origins
     assert "https://zoris.onrender.com" in settings.cors_origins
+
+    _clear_settings_cache()
+
+
+def test_default_cors_origin_regex_allows_render_hosts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    _clear_settings_cache()
+
+    settings = config.get_settings()
+
+    assert settings.cors_origin_regex == "^(?:https://.*\\.onrender\\.com)$"
+
+    _clear_settings_cache()
 
 
 def test_cors_origins_accepts_json_array(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,12 +154,16 @@ def test_cors_origins_accepts_whitespace_delimiters(monkeypatch: pytest.MonkeyPa
 
 def test_cors_origins_supports_wildcard_entries(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORS_ORIGINS", "https://*.example.com https://app.allowed.com")
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
     _clear_settings_cache()
 
     settings = config.get_settings()
 
     assert settings.cors_origins == ["https://app.allowed.com"]
-    assert settings.cors_origin_regex == "^(?:https://.*\\.example\\.com)$"
+    assert (
+        settings.cors_origin_regex
+        == "^(?:(?:https://.*\\.onrender\\.com)|(?:https://.*\\.example\\.com))$"
+    )
 
     _clear_settings_cache()
 
@@ -168,6 +189,7 @@ def test_cors_origins_normalize_paths_and_case(monkeypatch: pytest.MonkeyPatch) 
         "CORS_ORIGINS",
         "https://Admin.EXAMPLE.com:8443/dashboard, https://app.example.com/base/path",
     )
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
     _clear_settings_cache()
 
     settings = config.get_settings()
@@ -176,7 +198,7 @@ def test_cors_origins_normalize_paths_and_case(monkeypatch: pytest.MonkeyPatch) 
         "https://admin.example.com:8443",
         "https://app.example.com",
     ]
-    assert settings.cors_origin_regex is None
+    assert settings.cors_origin_regex == "^(?:https://.*\\.onrender\\.com)$"
 
 
 def test_database_password_injected_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:

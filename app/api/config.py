@@ -197,9 +197,12 @@ class Settings(BaseSettings):
         },
     )
     cors_origin_regex: str | None = Field(
-        default=None,
+        default="https://.*\\.onrender\\.com",
         alias="CORS_ORIGIN_REGEX",
-        description="Optional regular expression used to match allowed CORS origins.",
+        description=(
+            "Optional regular expression used to match allowed CORS origins. "
+            "Defaults to allowing any https://*.onrender.com host."
+        ),
     )
     auth_provider: Literal["mock", "shared_secret", "jwks"] = Field(
         default="mock",
