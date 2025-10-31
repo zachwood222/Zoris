@@ -14,12 +14,15 @@ from ..schemas.common import (
     AttachmentSummary,
     OCRSaleTicketResponse,
     SaleCreateRequest,
+    SaleCustomerSummary,
     SaleDeliveryRequest,
     SaleDeliveryStatusResponse,
     SaleDeliveryStatusUpdate,
     SaleFinalizeResponse,
+    SaleLineSummary,
     SaleDetailResponse,
     SaleLineRequest,
+    SaleUpdateRequest,
 )
 from ..schemas.sales import SaleDashboardEntry, SalesDashboardResponse
 from ..security import User, require_roles
@@ -157,7 +160,14 @@ async def list_deliveries(session: AsyncSession = Depends(get_session)) -> dict:
 
 @router.get("/{sale_id}", response_model=SaleDetailResponse)
 async def get_sale_detail(sale_id: int, session: AsyncSession = Depends(get_session)) -> SaleDetailResponse:
-    sale = await session.get(Sale, sale_id)
+    sale = await session.get(
+        Sale,
+        sale_id,
+        options=(
+            selectinload(Sale.customer),
+            selectinload(Sale.lines).selectinload(SaleLine.item),
+        ),
+    )
     if not sale:
         raise HTTPException(status_code=404, detail="sale_not_found")
     attachment_rows = (
@@ -176,6 +186,29 @@ async def get_sale_detail(sale_id: int, session: AsyncSession = Depends(get_sess
         )
         for attachment in attachment_rows
     ]
+    customer_summary = None
+    if sale.customer:
+        customer_summary = SaleCustomerSummary(
+            customer_id=sale.customer.customer_id,
+            name=sale.customer.name,
+            phone=sale.customer.phone,
+            email=sale.customer.email,
+        )
+
+    line_summaries = [
+        SaleLineSummary(
+            sale_line_id=line.sale_line_id,
+            item_id=line.item_id,
+            sku=line.item.sku if line.item else "",
+            description=line.item.description if line.item else "",
+            qty=float(line.qty or 0),
+            unit_price=float(line.unit_price or 0),
+            location_id=line.location_id,
+            short_code=line.item.short_code if line.item else None,
+        )
+        for line in sorted(sale.lines, key=lambda record: record.sale_line_id)
+    ]
+
     return SaleDetailResponse(
         sale_id=sale.sale_id,
         status=sale.status,
@@ -185,6 +218,11 @@ async def get_sale_detail(sale_id: int, session: AsyncSession = Depends(get_sess
         ocr_confidence=float(sale.ocr_confidence or 0),
         ocr_fields=sale.ocr_payload or {},
         attachments=attachments,
+        customer=customer_summary,
+        payment_method=sale.payment_method,
+        fulfillment_type=sale.fulfillment_type,
+        delivery_fee=float(sale.delivery_fee or 0),
+        lines=line_summaries,
     )
 
 
@@ -237,6 +275,73 @@ async def add_line(sale_id: int, payload: SaleLineRequest, session: AsyncSession
     sale.subtotal = sale_subtotal + item_price * qty
     sale.total = sale.subtotal
     return {"sale_line_id": line.sale_line_id}
+
+
+@router.put("/{sale_id}", response_model=SaleDetailResponse)
+async def update_sale(
+    sale_id: int,
+    payload: SaleUpdateRequest,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_roles("Floor", "Admin")),
+) -> SaleDetailResponse:
+    sale = await session.get(
+        Sale,
+        sale_id,
+        options=(
+            selectinload(Sale.lines),
+        ),
+    )
+    if not sale:
+        raise HTTPException(status_code=404, detail="sale_not_found")
+
+    if payload.fulfillment_type:
+        sale.fulfillment_type = payload.fulfillment_type
+        sale.delivery_requested = payload.fulfillment_type == "delivery"
+    if payload.payment_method:
+        sale.payment_method = payload.payment_method
+    sale.delivery_fee = Decimal(payload.delivery_fee or 0)
+    sale.customer_id = payload.customer_id
+
+    sale.lines.clear()
+    subtotal = Decimal("0")
+
+    for line_payload in payload.lines:
+        item_stmt = select(Item)
+        if line_payload.sku:
+            item_stmt = item_stmt.where(Item.sku == line_payload.sku)
+        elif line_payload.short_code:
+            item_stmt = item_stmt.where(Item.short_code == line_payload.short_code)
+        elif line_payload.barcode:
+            item_stmt = item_stmt.join(Barcode).where(Barcode.barcode == line_payload.barcode)
+        else:
+            raise HTTPException(status_code=400, detail="item_reference_required")
+
+        item = (await session.execute(item_stmt)).scalar_one_or_none()
+        if not item:
+            raise HTTPException(status_code=404, detail="item_not_found")
+
+        qty = Decimal(line_payload.qty or 0)
+        if qty <= 0:
+            continue
+
+        location_id = line_payload.location_id or 1
+        new_line = SaleLine(
+            sale_id=sale.sale_id,
+            item_id=item.item_id,
+            location_id=location_id,
+            qty=qty,
+            unit_price=item.price,
+        )
+        sale.lines.append(new_line)
+        subtotal += Decimal(item.price or 0) * qty
+
+    sale.subtotal = subtotal
+    sale.tax = Decimal(sale.tax or 0)
+    sale.total = subtotal + Decimal(payload.delivery_fee or 0)
+
+    await session.flush()
+
+    return await get_sale_detail(sale_id, session=session)
 
 
 @router.post("/{sale_id}/finalize", response_model=SaleFinalizeResponse)

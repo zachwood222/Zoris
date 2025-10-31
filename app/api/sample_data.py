@@ -278,6 +278,9 @@ async def ensure_sample_data(session: AsyncSession) -> SampleDataSummary:
             created_by="sample.loader",
             source="sample_data",
             external_ref="SAMPLE-SALE",
+            payment_method="cash",
+            fulfillment_type="pickup",
+            delivery_fee=0,
         )
         session.add(sale)
         await session.flush()
@@ -331,6 +334,9 @@ async def ensure_sample_data(session: AsyncSession) -> SampleDataSummary:
             delivery_requested=True,
             delivery_status=sale_seed["delivery_status"],
             ocr_payload={"customer_name": sale_seed["customer_name"]},
+            payment_method="credit_card",
+            fulfillment_type="delivery",
+            delivery_fee=round(total * 0.02, 2),
         )
         session.add(delivery_sale)
         await session.flush()
