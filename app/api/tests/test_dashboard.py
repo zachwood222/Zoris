@@ -26,6 +26,7 @@ async def test_dashboard_summary_includes_drilldowns(client) -> None:
     assert drilldowns["openSales"]
     first_sale = drilldowns["openSales"][0]
     assert first_sale["title"].startswith("Sale ")
+    assert first_sale["href"].startswith("/dashboard/sales/")
 
     assert "activeReceivers" in drilldowns
     assert isinstance(drilldowns["activeReceivers"], list)

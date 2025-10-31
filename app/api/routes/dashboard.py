@@ -257,6 +257,7 @@ async def get_dashboard_summary(
                     title=f"Sale #{sale.sale_id} {sale.status}",
                     description=f"Total ${float(sale.total or 0):,.2f}",
                     time=_humanize_delta(now, sale.created_at),
+                    href=f"/dashboard/sales/{sale.sale_id}",
                 ),
             )
         )
@@ -348,6 +349,7 @@ async def get_dashboard_summary(
                 meta=meta,
                 badge_label=badge_label,
                 badge_class=_badge_style(badge_color),
+                href=f"/dashboard/sales/{sale.sale_id}",
             )
         )
 

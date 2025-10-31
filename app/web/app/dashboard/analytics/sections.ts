@@ -18,7 +18,11 @@ export const analyticsSections: AnalyticsSection[] = [
     metricLabel: 'Open Sales',
     title: 'Open sales',
     description: 'Quotes and active tickets that still need fulfillment or invoicing.',
-    kicker: 'Sales pipeline'
+    kicker: 'Sales pipeline',
+    cta: {
+      label: 'Open sales dashboard',
+      href: '/dashboard/sales#open-sales'
+    }
   },
   {
     id: 'draftOcrTickets',

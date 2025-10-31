@@ -9,6 +9,7 @@ export type DashboardActivity = {
   title: string;
   description: string;
   time: string;
+  href?: string;
 };
 
 export type DashboardSystemStatus = {
@@ -25,6 +26,7 @@ export type DashboardDrilldownItem = {
   meta: string;
   badgeLabel: string;
   badgeClass: string;
+  href?: string;
 };
 
 export type DashboardDrilldownKey =
@@ -73,7 +75,8 @@ export const fallbackDashboardSummary: DashboardSummaryResponse = {
     {
       title: 'Sale #1045 closed',
       description: 'Total $2,940.22',
-      time: '18 minutes ago'
+      time: '18 minutes ago',
+      href: '/dashboard/sales/1045'
     },
     {
       title: 'PO #771 partial received',
@@ -88,7 +91,8 @@ export const fallbackDashboardSummary: DashboardSummaryResponse = {
     {
       title: 'Sale #1046 open',
       description: 'Total $1,204.09',
-      time: '2 hours ago'
+      time: '2 hours ago',
+      href: '/dashboard/sales/1046'
     },
     {
       title: 'PO #772 created',
@@ -124,7 +128,8 @@ export const fallbackDashboardSummary: DashboardSummaryResponse = {
         subtitle: 'Brady Builders • $1,204.09',
         meta: 'Quoted by J. Patel • 18 minutes ago',
         badgeLabel: 'Picking',
-        badgeClass: 'border border-sky-400/30 bg-sky-400/10 text-sky-200'
+        badgeClass: 'border border-sky-400/30 bg-sky-400/10 text-sky-200',
+        href: '/dashboard/sales/1046'
       },
       {
         id: 'sale-1047',
@@ -132,7 +137,8 @@ export const fallbackDashboardSummary: DashboardSummaryResponse = {
         subtitle: 'Metro Electric • $3,482.90',
         meta: 'Fulfillment ETA 3:00 PM',
         badgeLabel: 'Awaiting payment',
-        badgeClass: 'border border-amber-400/30 bg-amber-400/10 text-amber-200'
+        badgeClass: 'border border-amber-400/30 bg-amber-400/10 text-amber-200',
+        href: '/dashboard/sales/1047'
       },
       {
         id: 'sale-1048',
@@ -140,7 +146,8 @@ export const fallbackDashboardSummary: DashboardSummaryResponse = {
         subtitle: 'Langston Supply • $842.11',
         meta: 'Committed to Dock 2 • 35 minutes ago',
         badgeLabel: 'Staged',
-        badgeClass: 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
+        badgeClass: 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+        href: '/dashboard/sales/1048'
       }
     ],
     draftOcrTickets: [

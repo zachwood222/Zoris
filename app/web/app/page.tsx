@@ -9,6 +9,39 @@ import HeroStatusCard from './hero-status-card';
 
 const dashboards = [
   {
+    title: 'Sales orders',
+    description: 'Monitor open tickets, fulfilled orders, and delivery readiness in one workspace.',
+    icon: '📋',
+    href: '/dashboard/sales',
+    focusAreas: ['Open tickets', 'Fulfilled orders', 'Delivery coordination'],
+    quickTasks: [
+      {
+        href: '/dashboard/sales#open-sales',
+        label: 'Review open sales',
+        description: 'Check which orders still need picking, payment, or scheduling.',
+        icon: '🧾'
+      },
+      {
+        href: '/dashboard/sales#closed-sales',
+        label: 'Audit fulfilled sales',
+        description: 'Look back at recently closed tickets and make adjustments.',
+        icon: '✅'
+      },
+      {
+        href: '/kiosk',
+        label: 'Create new ticket',
+        description: 'Launch the guided counter flow for a new customer order.',
+        icon: '✨'
+      },
+      {
+        href: '/delivery/schedule',
+        label: 'Schedule delivery',
+        description: 'Attach delivery appointments to sales that are ready to roll.',
+        icon: '🚚'
+      }
+    ]
+  },
+  {
     title: 'Sales counter',
     description: 'Serve customers fast with kiosk workflows, catalog lookups, and OCR validation in one spot.',
     icon: '🛒',
