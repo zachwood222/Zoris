@@ -137,7 +137,10 @@ const dashboards = [
   {
     title: 'Deliver & receive',
     description: 'Coordinate warehouse and delivery teams to keep promises on track.',
-    items: [
+    icon: '🔄',
+    href: '/delivery',
+    focusAreas: ['Delivery operations', 'Receiving', 'Finance'],
+    quickTasks: [
       {
         href: '/delivery',
         label: 'Delivery dashboard',
