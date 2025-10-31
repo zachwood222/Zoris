@@ -107,7 +107,7 @@ test.describe('incoming trucks workspace', () => {
       });
     });
 
-    await page.goto('http://localhost:3000/incoming-trucks');
+    await page.goto('/incoming-trucks');
 
     await expect(page.getByRole('heading', { name: /incoming trucks/i })).toBeVisible();
     await expect(page.getByText(/#1001/)).toBeVisible();

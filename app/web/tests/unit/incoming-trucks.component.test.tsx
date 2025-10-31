@@ -2,8 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-vi.mock('../lib/incoming-trucks', async () => {
-  const actual = await vi.importActual<typeof import('../lib/incoming-trucks')>('../lib/incoming-trucks');
+vi.mock('../../lib/incoming-trucks', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/incoming-trucks')>('../../lib/incoming-trucks');
   return {
     ...actual,
     useIncomingTrucks: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock('../lib/incoming-trucks', async () => {
   };
 });
 
-import IncomingTrucksPage from '../app/incoming-trucks/page';
+import IncomingTrucksPage from '../../app/incoming-trucks/page';
 import {
   type IncomingTruck,
   type PoLineSearchResult,
@@ -20,7 +20,7 @@ import {
   submitTruckUpdate,
   useIncomingTrucks,
   usePoLineSearch
-} from '../lib/incoming-trucks';
+} from '../../lib/incoming-trucks';
 
 const mockedUseIncomingTrucks = vi.mocked(useIncomingTrucks);
 const mockedUsePoLineSearch = vi.mocked(usePoLineSearch);

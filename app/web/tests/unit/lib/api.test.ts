@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-import { resolveDefaultApiBase } from '../../lib/api';
+import { resolveDefaultApiBase } from '../../../lib/api';
 
 type LocationOptions = {
   protocol?: 'http:' | 'https:';

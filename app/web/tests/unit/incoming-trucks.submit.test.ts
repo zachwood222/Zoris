@@ -8,7 +8,7 @@ import {
   type IncomingTruck,
   type TruckUpdate,
   submitTruckUpdate
-} from '../lib/incoming-trucks';
+} from '../../lib/incoming-trucks';
 
 vi.mock('axios');
 

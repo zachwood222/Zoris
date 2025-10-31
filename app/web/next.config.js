@@ -72,6 +72,10 @@ const coerceUrl = (value) => {
 };
 
 const shouldEnableProxyRewrite = () => {
+  if (process.env.CI === 'true' || process.env.NODE_ENV === 'test' || process.env.SKIP_API_PROXY === '1') {
+    return false;
+  }
+
   const rawPublicBase = process.env.NEXT_PUBLIC_API_URL;
   if (!rawPublicBase || rawPublicBase.trim().length === 0) {
     return true;
