@@ -28,6 +28,7 @@ class ItemSummary(BaseModel):
     description: str
     price: float
     short_code: str
+    unit_cost: float
 
 
 class CustomerSummary(BaseModel):
