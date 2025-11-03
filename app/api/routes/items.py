@@ -145,6 +145,7 @@ async def search_items(q: str, session: AsyncSession = Depends(get_session)) -> 
             description=item.description,
             price=float(item.price),
             short_code=item.short_code,
+            unit_cost=float(item.unit_cost),
         )
         for item in items
     ]
@@ -161,6 +162,7 @@ async def get_by_short_code(code: str, session: AsyncSession = Depends(get_sessi
         description=item.description,
         price=float(item.price),
         short_code=item.short_code,
+        unit_cost=float(item.unit_cost),
     )
 
 
@@ -183,6 +185,7 @@ async def scan(barcode: str, session: AsyncSession = Depends(get_session)) -> di
             description=item.description,
             price=float(item.price),
             short_code=item.short_code,
+            unit_cost=float(item.unit_cost),
         ),
         "locations": [
             {"location": loc, "qty_on_hand": float(qty)} for loc, qty in inventory
@@ -271,6 +274,7 @@ async def get_item_detail(
             description=item.description,
             price=float(item.price),
             short_code=item.short_code,
+            unit_cost=float(item.unit_cost),
         ),
         total_on_hand=total_on_hand,
         locations=locations,

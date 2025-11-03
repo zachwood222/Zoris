@@ -67,6 +67,7 @@ async def test_get_item_detail_returns_inventory_and_incoming(client) -> None:
     payload = response.json()
 
     assert payload["item"]["sku"] == "SKU-CLICK"
+    assert payload["item"]["unit_cost"] == pytest.approx(10.0)
     assert payload["total_on_hand"] == pytest.approx(5.0)
     assert len(payload["locations"]) == 1
     location_payload = payload["locations"][0]
@@ -116,7 +117,7 @@ async def test_search_items_supports_short_code(client) -> None:
     assert response.status_code == 200
     payload = response.json()
 
-    assert any(result["sku"] == "SKU-SHORT" for result in payload)
+    assert any(result["sku"] == "SKU-SHORT" and result["unit_cost"] == pytest.approx(40.0) for result in payload)
 
 
 @pytest.mark.asyncio
